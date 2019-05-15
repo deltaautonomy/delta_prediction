@@ -46,8 +46,6 @@ def data_callback(odom):
 	print(DISTANCE)
 
 
-
-
 def dataCollection(mode):
 	rospy.init_node('data_collection', anonymous=True)
 	

@@ -5,26 +5,30 @@ Email   : pparmesh@andrew.cmu.edu
 Date    : Apr 16, 2019
 '''
 
-import numpy as np
+import os
+import sys
 import math
-from nav_msgs.msg import Odometry
 
-import rospy
 import tf
-from visualization_msgs.msg import Marker, MarkerArray
+import rospy
+import numpy as np
+from nav_msgs.msg import Odometry
 from geometry_msgs.msg import Point
+from visualization_msgs.msg import Marker, MarkerArray
 
 cos = lambda theta: math.cos(theta)
 sin = lambda theta: math.sin(theta)
 
 # Declare globals
-ODOM = np.load('odometry_data.npy')
+ODOM = None
+VALIDATION = False
 RMSE_window = []
 X_OLD = 0
 XVEL_OLD = 0
+TIME_OLD = 0
 
 
-class EgoTrajPrediction:
+class EgoTrajectoryPrediction:
 	'''This class instantiates the trajectory prediction for 
 	ego vehicle with a filter step --> dt and vehicle ID --> id'''
 
@@ -41,7 +45,14 @@ class EgoTrajPrediction:
 
 	# The constant acceleration model assumes longitudinal motion
 
-	def constantAcceleration(self, xPos, yPos, xVel, yVel, xAcc, yAcc):
+	@staticmethod
+	def set_odom_path(odom_path):
+		global ODOM, VALIDATION
+		if ODOM is None:
+			VALIDATION = True
+			ODOM = np.load(odom_path)
+
+	def constant_acceleration(self, xPos, yPos, xVel, yVel, xAcc, yAcc):
 		''' Future state is x(k+1)
 		x(k+1) = A(k)*x(K) + w where w is 0 mean Gaussian process noise
 		This process noise is 0 always'''
@@ -73,7 +84,6 @@ class EgoTrajPrediction:
 
 		Q = np.matmul(G, G.T) * (sa ** 2)
 
-
 		# State space till 3 seconds into the future at intervals of dt
 		stateSpacePrediction = []
 		x_old = x_0
@@ -93,7 +103,7 @@ class EgoTrajPrediction:
 			P_old = P_new
 			covarianceTotal.append(P_new)
 			# Increment time
-			t = t + 0.1
+			t = t + dt
 
 		stateSpacePrediction = np.asarray(stateSpacePrediction)
 		covarianceTotal = np.asarray(covarianceTotal)
@@ -102,7 +112,7 @@ class EgoTrajPrediction:
 
 	# ------------ Constant Turn Rate and Speed (CTR)-------------------------
 
-	def constantTurnRate(self, xPos, yPos, yaw, vel, yawRate):
+	def constant_turn_rate(self, xPos, yPos, yaw, vel, yawRate):
 		''' This model assumes a constant turn rate, i.e, yaw rate and a constant
 		velocity which is perpendicular to its acceleration'''
 
@@ -174,57 +184,65 @@ class EgoTrajPrediction:
 			covarianceTotal.append(P_new)
 			P_old = P_new
 
-			t = t + 0.1
+			t = t + dt
 
 		stateSpacePrediction = np.asarray(stateSpacePrediction)
 		covarianceTotal = np.asarray(covarianceTotal)
 
 		return stateSpacePrediction, covarianceTotal
 
-
-	def ROSCallback(self, odom):
+	def callback(self, odom):
+		if ODOM is None and VALIDATION: return
 		self.last_odom_msg = odom
 
+	def run(self, pub_pred, pub_odom):
+		global TIME_OLD
 
-	def run(self, pub):
+		last_odom_msg = self.last_odom_msg
+
+		# Find current time
+		current_time = last_odom_msg.header.stamp.to_sec()
+
 		# Find x and y position
-		xPos, yPos = self.last_odom_msg.pose.pose.position.x, self.last_odom_msg.pose.pose.position.y
+		xPos, yPos = last_odom_msg.pose.pose.position.x, last_odom_msg.pose.pose.position.y
 		# Find x and y velocity components
-		xVel, yVel = self.last_odom_msg.twist.twist.linear.x, self.last_odom_msg.twist.twist.linear.y
+		xVel, yVel = last_odom_msg.twist.twist.linear.x, last_odom_msg.twist.twist.linear.y
 		# Find roll, pitch and yaw
 		(roll, pitch, yaw) = tf.transformations.euler_from_quaternion(
 			[
-				self.last_odom_msg.pose.pose.orientation.x,
-				self.last_odom_msg.pose.pose.orientation.y,
-				self.last_odom_msg.pose.pose.orientation.z,
-				self.last_odom_msg.pose.pose.orientation.w,
+				last_odom_msg.pose.pose.orientation.x,
+				last_odom_msg.pose.pose.orientation.y,
+				last_odom_msg.pose.pose.orientation.z,
+				last_odom_msg.pose.pose.orientation.w,
 			]
 		)
 
 		# Find yaw rate and determine model to use
-		yawRate = self.last_odom_msg.twist.twist.angular.z
+		yawRate = last_odom_msg.twist.twist.angular.z
+		# yawRate = yaw / (current_time - TIME_OLD - 0.1)
 		# If yaw rate is less than 0.01 use the CA model, else use the CTRV model
 		if abs(yawRate) < 0.01:
-			xAcc = self.findAcceleration(xPos, xVel)
+			xAcc = self.find_acceleration(xPos, xVel)
 			# xAcc = 0
 			yAcc = 0
-			states, covariance = self.constantAcceleration(xPos, yPos, xVel, yVel, xAcc, yAcc)
+			states, covariance = self.constant_acceleration(xPos, yPos, xVel, yVel, xAcc, yAcc)
 
 		else:
 			vel = math.sqrt(xVel**2 + yVel**2)
-			states, covariance = self.constantTurnRate(xPos, yPos, yaw, vel, yawRate)
+			states, covariance = self.constant_turn_rate(xPos, yPos, yaw, vel, yawRate)
 
-		current_time = self.last_odom_msg.header.stamp.to_sec()
-		
-		self.predictionValidator(states, current_time)
+		if VALIDATION:
+			self.prediction_validator(states, current_time, pub_odom)
 
-		self.visualize(states, covariance, pub)
+		colour_pred = [1.0, 0.0, 1.0, 0.0 ]
+		self.visualize(states, colour_pred, pub_pred)
 
+		TIME_OLD = current_time
 
-	def visualize(self, states, covariance, pub):
+	def visualize(self, states, colour, pub):
 		marker_array = MarkerArray()
 		marker = Marker()
-		marker.header.stamp = rospy.Time.now()
+		marker.header.stamp = self.last_odom_msg.header.stamp
 		marker.header.frame_id = 'map'
 		marker.ns = 'predicted_trajectory'
 		marker.type = 4
@@ -238,19 +256,20 @@ class EgoTrajPrediction:
 			P.z = 0
 			marker.points.append(P)
 			
-		marker.scale.x = 0.1
-		marker.color.a = 1.0
-		marker.color.r = 0.5
-		marker.color.g = 1.0
-		marker.color.b = 0.0
+		marker.scale.x = 0.3
+		marker.color.a = colour[0]
+		marker.color.r = colour[1]
+		marker.color.g = colour[2]
+		marker.color.b = colour[3]
+		# marker.frame_locked = True
 		# marker_array.markers.append(marker)
 		pub.publish(marker)
 
-
-	def predictionValidator(self, states, current_time):
+	def prediction_validator(self, states, current_time, pub_odom):
 		global VALIDATOR_COUNTER, ODOM, RMSE_window
 		# Find total number of predictions 
 		num_predictions = int(self.T / self.dt)
+		colour_odom = [1.0, 0.0, 0.0, 1.0 ]
 
 		try:
 			# Find odometry values to be compared. They are only a portion of the entire data seq
@@ -265,6 +284,7 @@ class EgoTrajPrediction:
 				odometry_states.append(val)
 
 			odometry_states = np.asarray(odometry_states)
+			self.visualize(odometry_states, colour_odom, pub_odom)
 
 			predicted_states = states[:,0:2]
 
@@ -281,15 +301,13 @@ class EgoTrajPrediction:
 				window_err = RMSE_window[-100:]
 				window_err = np.asarray(window_err)
 				window_err = np.mean(window_err)
-				print(window_err)
+				sys.stdout.write("\r\033[94m%s Prediction Error %.3f m %s\033[00m" % ("*"*20, window_err, "*"*20))
+				sys.stdout.flush()
 
+		except Exception as e:
+			pass
 
-		except:
-			print("Index Error")
-
-
-
-	def findAcceleration(self, xPos, xVel):
+	def find_acceleration(self, xPos, xVel):
 		global X_OLD, XVEL_OLD
 
 		if (xPos!=X_OLD):
@@ -301,5 +319,3 @@ class EgoTrajPrediction:
 			X_OLD = xPos
 			XVEL_OLD = xVel
 			return 0
-
-
