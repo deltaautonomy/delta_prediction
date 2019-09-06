@@ -3,8 +3,8 @@
     <!-- Run the prediction pipeline -->
     <node   
         pkg="delta_prediction"
-        type="egoTraj_subscriber.py"
-        name="egoTraj_subscriber"
+        type="ego_trajectory_subscriber.py"
+        name="ego_trajectory_subscriber"
         output="screen">
     </node>
 
