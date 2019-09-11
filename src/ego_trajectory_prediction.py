@@ -10,14 +10,15 @@ import sys
 import math
 
 import tf
-import rospy
 import numpy as np
+
 from nav_msgs.msg import Odometry
 from geometry_msgs.msg import Point
 from visualization_msgs.msg import Marker, MarkerArray
+from carla_ros_bridge.msg import EgoState, EgoStateArray
 
-cos = lambda theta: math.cos(theta)
-sin = lambda theta: math.sin(theta)
+cos = lambda theta: np.cos(theta)
+sin = lambda theta: np.sin(theta)
 
 # Declare globals
 ODOM = None
@@ -96,6 +97,9 @@ class EgoTrajectoryPrediction:
 		while t <= T:
 			# Propogating state
 			x_new = np.matmul(A, x_old.T)
+			# Check if decelerating. 
+			if self.sign(xVel) != self.sign(x_new[2]):
+				x_new[2] = 0
 			stateSpacePrediction.append(x_new)
 			x_old = x_new
 			# Propogating covariance
@@ -110,6 +114,10 @@ class EgoTrajectoryPrediction:
 
 		return stateSpacePrediction, covarianceTotal
 
+	def sign(self, num):
+		if num >= 0: return 1
+		else: return -1
+
 	# ------------ Constant Turn Rate and Speed (CTR)-------------------------
 
 	def constant_turn_rate(self, xPos, yPos, yaw, vel, yawRate):
@@ -122,16 +130,10 @@ class EgoTrajectoryPrediction:
 		# Evaluate reliability of estimated path, propogate covariance
 		# P(k+1) = A(k)*P(k) + Q where Q is the covariance matrix of process noise
 
-		sGPS = (
-			0.5 * 8.8 * dt ** 2
-		)  # assume 8.8m/s2 as maximum acceleration, forcing the vehicle
+		sGPS = 0.5 * 8.8 * dt ** 2  # assume 8.8m/s2 as maximum acceleration, forcing the vehicle
 		sCourse = 0.1 * dt  # assume 0.1rad/s as maximum turn rate for the vehicle
-		sVelocity = (
-			8.8 * dt
-		)  # assume 8.8m/s2 as maximum acceleration, forcing the vehicle
-		sYaw = (
-			1.0 * dt
-		)  # assume 1.0rad/s2 as the maximum turn rate acceleration for the vehicle
+		sVelocity = 8.8 * dt  # assume 8.8m/s2 as maximum acceleration, forcing the vehicle
+		sYaw = 1.0 * dt  # assume 1.0rad/s2 as the maximum turn rate acceleration for the vehicle
 
 		Q = np.diag([sGPS ** 2, sGPS ** 2, sCourse ** 2, sVelocity ** 2, sYaw ** 2])
 		
@@ -149,20 +151,17 @@ class EgoTrajectoryPrediction:
 
 		while t <= T:
 			# Making the transistion matrix (linearizing using Jacobian)
-
 			# Assign values to state variables
 			xPos, yPos, yaw, vel, yawRate = x_old
 
 			A13 = vel / yawRate * (-cos(yaw) + cos(dt * yawRate + yaw))
 			A14 = 1 / yawRate * (-sin(yaw) + sin(dt * yawRate + yaw))
 			A15 = dt * vel / yawRate * cos(dt * yawRate + yaw) - vel / (yawRate ** 2) * (
-				-sin(yaw) + sin(dt * yawRate + yaw)
-			)
+				-sin(yaw) + sin(dt * yawRate + yaw))
 			A23 = vel / yawRate * (-sin(yaw) + sin(dt * yawRate + yaw))
 			A24 = 1 / yawRate * (cos(yaw) - cos(dt * yawRate + yaw))
 			A25 = dt * vel / yawRate * sin(dt * yawRate + yaw) - vel / (yawRate ** 2) * (
-				cos(yaw) - cos(dt * yawRate + yaw)
-			)
+				cos(yaw) - cos(dt * yawRate + yaw))
 
 			A = np.array(
 				[
@@ -176,6 +175,7 @@ class EgoTrajectoryPrediction:
 
 			# Forward propogate state
 			x_new = np.matmul(A, x_old)
+
 			stateSpacePrediction.append(x_new)
 			x_old = x_new
 
@@ -183,7 +183,6 @@ class EgoTrajectoryPrediction:
 			P_new = np.matmul(A, np.matmul(P_old, A.T)) + Q
 			covarianceTotal.append(P_new)
 			P_old = P_new
-
 			t = t + dt
 
 		stateSpacePrediction = np.asarray(stateSpacePrediction)
@@ -195,18 +194,22 @@ class EgoTrajectoryPrediction:
 		if ODOM is None and VALIDATION: return
 		self.last_odom_msg = odom
 
-	def run(self, pub_pred, pub_odom):
+	def run(self, pub_pred, pub_odom, pub_state):
 		global TIME_OLD
 
 		last_odom_msg = self.last_odom_msg
+		# Motion model variable
+		motion_model = ''
 
 		# Find current time
 		current_time = last_odom_msg.header.stamp.to_sec()
 
 		# Find x and y position
 		xPos, yPos = last_odom_msg.pose.pose.position.x, last_odom_msg.pose.pose.position.y
+
 		# Find x and y velocity components
 		xVel, yVel = last_odom_msg.twist.twist.linear.x, last_odom_msg.twist.twist.linear.y
+		
 		# Find roll, pitch and yaw
 		(roll, pitch, yaw) = tf.transformations.euler_from_quaternion(
 			[
@@ -219,17 +222,17 @@ class EgoTrajectoryPrediction:
 
 		# Find yaw rate and determine model to use
 		yawRate = last_odom_msg.twist.twist.angular.z
-		# yawRate = yaw / (current_time - TIME_OLD - 0.1)
+
 		# If yaw rate is less than 0.01 use the CA model, else use the CTRV model
 		if abs(yawRate) < 0.01:
+			motion_model = 'CA'
 			xAcc = self.find_acceleration(xPos, xVel)
-			# xAcc = 0
-			yAcc = 0
-			states, covariance = self.constant_acceleration(xPos, yPos, xVel, yVel, xAcc, yAcc)
-
+			yAcc = self.find_acceleration(yPos, yVel)
+			states, covariance = self.constant_acceleration(0, 0, xVel, yVel, xAcc, yAcc)
 		else:
-			vel = math.sqrt(xVel**2 + yVel**2)
-			states, covariance = self.constant_turn_rate(xPos, yPos, yaw, vel, yawRate)
+			motion_model = 'CTRV'
+			vel = self.sign(xVel) * math.sqrt(xVel**2 + yVel**2)
+			states, covariance = self.constant_turn_rate(0, 0, 0, vel, yawRate)
 
 		if VALIDATION:
 			self.prediction_validator(states, current_time, pub_odom)
@@ -237,19 +240,21 @@ class EgoTrajectoryPrediction:
 		colour_pred = [1.0, 0.0, 1.0, 0.0 ]
 		self.visualize(states, colour_pred, pub_pred)
 
+		# Add publisher for ego state data
+		self.ego_state_publisher(motion_model, states, pub_state)
+
 		TIME_OLD = current_time
 
 	def visualize(self, states, colour, pub):
 		marker_array = MarkerArray()
 		marker = Marker()
 		marker.header.stamp = self.last_odom_msg.header.stamp
-		marker.header.frame_id = 'map'
+		marker.header.frame_id = 'ego_vehicle'
 		marker.ns = 'predicted_trajectory'
 		marker.type = 4
 		marker.action = 0 # Adds an object (check it later)
 		for idx in range(states.shape[0]):
-
-		 # state in both models have x and y first	
+		 	# state in both models have x and y first	
 			P = Point()
 			P.x = states[idx, 0] # state in both models have x and y first
 			P.y = states[idx, 1]
@@ -290,10 +295,9 @@ class EgoTrajectoryPrediction:
 
 			# Find the RMSE error between the predicted states and odometry
 			err =  np.linalg.norm((predicted_states - odometry_states), axis = 1)
+			
 			# Evaluate RMSE
 			RMSE = np.sum(err) / num_predictions
-			# print(RMSE)
-
 			RMSE_window.append(RMSE)
 
 			# Find mean 
@@ -319,3 +323,35 @@ class EgoTrajectoryPrediction:
 			X_OLD = xPos
 			XVEL_OLD = xVel
 			return 0
+
+	def ego_state_publisher(self, motion_model, states, pub):
+		'''Helper function to publish ego-vehicle state for the next n time steps'''
+		egoState_array = EgoStateArray()
+		states_list = list(states)
+		# Iterate over states
+		for state in states_list:
+			# Choose motion model
+			if motion_model == 'CA':
+				egoState = EgoState()
+				egoState.header.stamp = self.last_odom_msg.header.stamp
+				egoState.pose.position.x = state[0]
+				egoState.pose.position.y = state[1]
+				egoState.twist.linear.x = state[2]
+				egoState.twist.linear.y = state[3]
+				egoState.accel.linear.x = state[4]
+				egoState.accel.linear.y = state[5]
+				# Append to array
+				egoState_array.egoStates.append(egoState)
+
+			if motion_model == 'CTRV':
+				egoState = EgoState()
+				egoState.header.stamp = self.last_odom_msg.header.stamp
+				egoState.pose.position.x = state[0]
+				egoState.pose.position.y = state[1]
+				egoState.pose.orientation.z = state[2]
+				egoState.twist.linear.x = state[3]
+				egoState.twist.angular.z = state[4]
+				# Append to array
+				egoState_array.egoStates.append(egoState)
+
+		pub.publish(egoState_array)
