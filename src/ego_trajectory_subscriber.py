@@ -13,7 +13,7 @@ import math
 import rospy
 from nav_msgs.msg import Odometry
 from visualization_msgs.msg import MarkerArray, Marker
-from carla_ros_bridge.msg import EgoState, EgoStateArray
+from delta_prediction.msg import EgoStateEstimate, EgoStateEstimateArray
 
 from ego_trajectory_prediction import EgoTrajectoryPrediction
 
@@ -28,14 +28,14 @@ def main():
 		ego_predictor.set_odom_path(odom_path)
 
 	rospy.Subscriber("/carla/ego_vehicle/odometry", Odometry, ego_predictor.callback)
-	pub_pred = rospy.Publisher('/delta/prediction/ego', Marker, queue_size=10)
+	pub_vis = rospy.Publisher('/delta/prediction/ego', Marker, queue_size=10)
 	pub_odom = rospy.Publisher('/delta/prediction/ground_truth', Marker, queue_size=10)
-	pub_state = rospy.Publisher('/delta/prediction/ego_states', EgoStateArray, queue_size=10)
+	pub_state = rospy.Publisher('/delta/prediction/ego_vehicle/state', EgoStateEstimate, queue_size=10)
+	pub_traj = rospy.Publisher('/delta/prediction/ego_vehicle/trajectory', EgoStateEstimateArray, queue_size=10)
 	r = rospy.Rate(10)
 
-	# Randomly publish some data
 	while not rospy.is_shutdown():
-		ego_predictor.run(pub_pred, pub_odom, pub_state)
+		ego_predictor.run(pub_vis, pub_odom, pub_state, pub_traj)
 		r.sleep()
 
 
