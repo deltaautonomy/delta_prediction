@@ -21,14 +21,6 @@ from tf.transformations import euler_from_quaternion, quaternion_from_euler
 cos = lambda theta: np.cos(theta)
 sin = lambda theta: np.sin(theta)
 
-# Declare globals
-ODOM = None
-VALIDATION = False
-RMSE_window = []
-X_OLD = 0
-XVEL_OLD = 0
-TIME_OLD = 0
-
 
 class EgoTrajectoryPrediction:
     '''This class instantiates the trajectory prediction for 
@@ -38,6 +30,10 @@ class EgoTrajectoryPrediction:
         self.dt = dt
         self.T = T
         self.odom_msg = Odometry()
+        self.validation = False
+        self.odom = None
+        self.RMSE_window = []
+        self.old_xv = 0
 
     # We will make the following forward proprogation models here.
     # 1. Constant acceleration model
@@ -47,12 +43,10 @@ class EgoTrajectoryPrediction:
 
     # The constant acceleration model assumes longitudinal motion
 
-    @staticmethod
-    def set_odom_path(odom_path):
-        global ODOM, VALIDATION
-        if ODOM is None:
-            VALIDATION = True
-            ODOM = np.load(odom_path)
+    def set_odom_path(self, odom_path):
+        if self.odom is None:
+            self.validation = True
+            self.odom = np.load(odom_path)
 
     def constant_acceleration(self, xPos, yPos, xVel, yVel, xAcc, yAcc):
         ''' Future state is x(k+1)
@@ -65,8 +59,8 @@ class EgoTrajectoryPrediction:
 
         A = np.array(
             [
-                [1.0, 0.0, dt, 0.0, 0.5 * (dt ** 2), 0.0],
-                [0.0, 1.0, 0.0, dt, 0.0, 0.5 * (dt ** 2)],
+                [1.0, 0.0, dt, 0.0, 0.5*(dt**2), 0.0],
+                [0.0, 1.0, 0.0, dt, 0.0, 0.5*(dt**2)],
                 [0.0, 0.0, 1.0, 0.0, dt, 0.0],
                 [0.0, 0.0, 0.0, 1.0, 0.0, dt],
                 [0.0, 0.0, 0.0, 0.0, 1.0, 0.0],
@@ -82,9 +76,9 @@ class EgoTrajectoryPrediction:
         # Q = G*G'*sa**2. G and sa have been defined below
 
         sa = 0.1  # Acceleration process noise
-        G = np.array([[0.5 * (dt ** 2)], [0.5 * (dt ** 2)], [dt], [dt], [1.0], [1.0]])
+        G = np.array([[0.5*(dt**2)], [0.5*(dt**2)], [dt], [dt], [1.0], [1.0]])
 
-        Q = np.matmul(G, G.T) * (sa ** 2)
+        Q = np.matmul(G, G.T)*(sa**2)
 
         # State space till 3 seconds into the future at intervals of dt
         stateSpacePrediction = []
@@ -98,7 +92,7 @@ class EgoTrajectoryPrediction:
         while t <= T:
             # Propogating state
             x_new = np.matmul(A, x_old.T)
-            # Check if decelerating. 
+            # Check if velocity zero. 
             if self.sign(xVel) != self.sign(x_new[2]):
                 x_new[2] = 0
             stateSpacePrediction.append(x_new)
@@ -217,7 +211,6 @@ class EgoTrajectoryPrediction:
         pub.publish(marker)
 
     def prediction_validator(self, states, current_time, pub_odom):
-        global VALIDATOR_COUNTER, ODOM, RMSE_window
         # Find total number of predictions 
         num_predictions = int(self.T / self.dt)
         colour_odom = [1.0, 0.0, 0.0, 1.0 ]
@@ -228,10 +221,10 @@ class EgoTrajectoryPrediction:
             odom_timestep = 0
             while odom_timestep <= self.T:
                 current_time += self.dt
-                index = ODOM[:, 2].searchsorted(current_time)
+                index = self.odom[:, 2].searchsorted(current_time)
 
                 odom_timestep += self.dt
-                val = ODOM[index, 0:2]
+                val = self.odom[index, 0:2]
                 odometry_states.append(val)
 
             odometry_states = np.asarray(odometry_states)
@@ -244,11 +237,11 @@ class EgoTrajectoryPrediction:
             
             # Evaluate RMSE
             RMSE = np.sum(err) / num_predictions
-            RMSE_window.append(RMSE)
+            self.RMSE_window.append(RMSE)
 
             # Find mean 
-            if len(RMSE_window) > 100:
-                window_err = RMSE_window[-100:]
+            if len(self.RMSE_window) > 100:
+                window_err = self.RMSE_window[-100:]
                 window_err = np.asarray(window_err)
                 window_err = np.mean(window_err)
                 sys.stdout.write("\r\033[94m%s Prediction Error %.3f m %s\033[00m" % ("*"*20, window_err, "*"*20))
@@ -257,18 +250,23 @@ class EgoTrajectoryPrediction:
         except Exception as e:
             pass
 
-    def find_acceleration(self, xPos, xVel):
-        global X_OLD, XVEL_OLD
-
-        if (xPos != X_OLD):
-            xAcc = (xVel**2 - XVEL_OLD**2) / (2 * (xPos - X_OLD))
-            X_OLD = xPos
-            XVEL_OLD = xVel
-            return xAcc
+    def find_acceleration(self, xPos, yPos, xVel, yVel):
+        if self.old_state[0] != 0 and self.old_state[1] != 0:
+            if (xPos != self.old_state[0]):
+                xAcc = (xVel**2 - self.old_state[2]**2) / (2*(xPos - self.old_state[0]))
+            else:
+                xAcc = 0
+            
+            if (yPos != self.old_state[1]):
+                yAcc = (yVel**2 - self.old_state[3]**2) / (2*(yPos - self.old_state[1]))
+            else:
+                yAcc = 0
         else:
-            X_OLD = xPos
-            XVEL_OLD = xVel
-            return 0
+            xAcc = 0
+            yAcc = 0
+        
+        self.old_state = np.array([xPos, yPos, xVel, yVel])
+        return xAcc, yAcc
 
     def publish_state(self, motion_model, states, pub, accel):
         '''Helper function to publish ego-vehicle state for current timestep'''
@@ -331,12 +329,10 @@ class EgoTrajectoryPrediction:
         pub.publish(ego_state_array)
 
     def callback(self, odom):
-        if ODOM is None and VALIDATION: return
+        if self.odom is None and self.validation: return
         self.odom_msg = odom
 
     def run(self, pub_pred, pub_odom, pub_state, pub_traj):
-        global TIME_OLD
-
         odom_msg = self.odom_msg
         # Motion model variable
         motion_model = ''
@@ -374,7 +370,7 @@ class EgoTrajectoryPrediction:
             vel = self.sign(xVel) * math.sqrt(xVel**2 + yVel**2)
             states, covariance = self.constant_turn_rate(0, 0, 0, vel, yaw_rate)
 
-        if VALIDATION:
+        if self.validation:
             self.prediction_validator(states, current_time, pub_odom)
 
         colour_pred = [1.0, 0.0, 1.0, 0.0 ]
@@ -383,5 +379,3 @@ class EgoTrajectoryPrediction:
         # Add publisher for ego state data
         self.publish_state(motion_model, self.odom_msg, pub_state, [xAcc, yAcc])
         self.publish_trajectory(motion_model, states, pub_traj)
-
-        TIME_OLD = current_time
