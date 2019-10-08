@@ -4,7 +4,7 @@
     <!-- Args -->
     <!-- <param name="use_sim_time" value="true"/> -->
     <arg name="version" default=""/>
-    <param name="odom_path" value="/mnt/data/Workspaces/perception_ws/src/delta_prediction/validation_numpy/validator_$(arg version).npy"/>
+    <param name="odom_path" value="/mnt/data/Workspaces/delta_workspace/src/delta_prediction/validation_numpy/validator_$(arg version).npy"/>
 
     <!-- Play rosbag record -->
     <include file="$(find delta_perception)/launch/play_rosbag.launch">

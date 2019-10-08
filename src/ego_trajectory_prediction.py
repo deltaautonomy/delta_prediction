@@ -33,7 +33,7 @@ class EgoTrajectoryPrediction:
         self.validation = False
         self.odom = None
         self.RMSE_window = []
-        self.old_xv = 0
+        self.old_state = np.zeros(4)
 
     # We will make the following forward proprogation models here.
     # 1. Constant acceleration model
@@ -272,7 +272,7 @@ class EgoTrajectoryPrediction:
         '''Helper function to publish ego-vehicle state for current timestep'''
         ego_state = EgoStateEstimate()
         ego_state.header.stamp = self.odom_msg.header.stamp
-        ego_state.pose = self.odom_msg.pose
+        ego_state.pose = self.odom_msg.pose.pose
         ego_state.twist = self.odom_msg.twist.twist
         ego_state.accel.linear.x = accel[0]
         ego_state.accel.linear.y = accel[1]
@@ -358,12 +358,11 @@ class EgoTrajectoryPrediction:
 
         # Find yaw rate and determine model to use
         yaw_rate = odom_msg.twist.twist.angular.z
-
+        xAcc, yAcc = 0, 0
         # If yaw rate is less than 0.01 use the CA model, else use the CTRV model
         if np.abs(yaw_rate) < 1e-6:
             motion_model = 'CA'
-            xAcc = self.find_acceleration(xPos, xVel)
-            yAcc = self.find_acceleration(yPos, yVel)
+            xAcc, yAcc = self.find_acceleration(xPos, yPos, xVel, yVel)
             states, covariance = self.constant_acceleration(0, 0, xVel, yVel, xAcc, yAcc)
         else:
             motion_model = 'CTRV'
