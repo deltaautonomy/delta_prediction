@@ -26,6 +26,9 @@ add_message_files(
   FILES
   EgoStateEstimate.msg
   EgoStateEstimateArray.msg
+  OncomingVehicleStateEstimate.msg
+  OncomingVehicleTrajectory.msg 
+  OncomingVehicleTrajectoryArray.msg
 )
 
 ## Generate added messages and services with any dependencies listed here

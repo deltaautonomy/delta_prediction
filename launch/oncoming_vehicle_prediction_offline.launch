@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<launch>
+
+    <!-- Play rosbag record -->
+    <include file="$(find delta_perception)/launch/play_rosbag.launch">
+        <arg name="filename" value="/media/karmesh/DATA/CMU/MRSD_Project/Dataset/prediction_debug_3.bag" />
+    </include>
+
+    <!-- Run the oncoming prediction pipeline -->
+    <node   
+        pkg="delta_prediction"
+        type="oncoming_trajectory_prediction.py"
+        name="oncoming_trajectory_prediction"
+        output="screen">
+    </node>
+
+    <node
+        type="rviz" name="rviz" pkg="rviz" args="-d $(find delta_prediction)/prediction.rviz">
+    </node>
+
+</launch>
