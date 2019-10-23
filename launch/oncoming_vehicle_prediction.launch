@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<launch>
+    <!-- Run the oncoming prediction pipeline -->
+    <node   
+        pkg="delta_prediction"
+        type="oncoming_trajectory_prediction.py"
+        name="oncoming_trajectory_prediction"
+        output="screen">
+    </node>
+
+</launch>
