@@ -13,7 +13,7 @@ import math
 import rospy
 from nav_msgs.msg import Odometry
 from visualization_msgs.msg import MarkerArray, Marker
-from delta_prediction.msg import EgoStateEstimate, EgoStateEstimateArray
+from delta_msgs.msg import EgoStateEstimate, EgoStateEstimateArray
 
 from ego_trajectory_prediction import EgoTrajectoryPrediction
 

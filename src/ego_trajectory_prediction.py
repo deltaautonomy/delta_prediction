@@ -15,7 +15,7 @@ import numpy as np
 from nav_msgs.msg import Odometry
 from geometry_msgs.msg import Point
 from visualization_msgs.msg import Marker, MarkerArray
-from delta_prediction.msg import EgoStateEstimate, EgoStateEstimateArray
+from delta_msgs.msg import EgoStateEstimate, EgoStateEstimateArray
 from tf.transformations import euler_from_quaternion, quaternion_from_euler
 
 cos = lambda theta: np.cos(theta)
