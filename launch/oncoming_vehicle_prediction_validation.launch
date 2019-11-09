@@ -2,6 +2,7 @@
 <launch>
 
     <!-- Play rosbag record -->
+    <param name="oncoming_validation_folder" value="/home/karmesh/delta_ws/src/delta_prediction/validation_dataset"/>
     <include file="$(find delta_perception)/launch/play_rosbag.launch">
         <arg name="filename" value="/media/karmesh/DATA/CMU/MRSD_Project/Dataset/prediction_debug_4.bag" />
     </include>
@@ -9,8 +10,8 @@
     <!-- Run the oncoming prediction pipeline -->
     <node   
         pkg="delta_prediction"
-        type="oncoming_trajectory_prediction.py"
-        name="oncoming_trajectory_prediction"
+        type="oncoming_trajectory_validation.py"
+        name="oncoming_trajectory_validation"
         output="screen">
     </node>
 

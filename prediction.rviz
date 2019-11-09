@@ -25,7 +25,7 @@ Panels:
     Experimental: false
     Name: Time
     SyncMode: 0
-    SyncSource: Perception Outputs Image
+    SyncSource: ""
 Toolbars:
   toolButtonStyle: 2
 Visualization Manager:
@@ -90,7 +90,7 @@ Visualization Manager:
       Marker Topic: /delta/perception/camera_track_marker
       Name: Camera Track Marker
       Namespaces:
-        {}
+        "": true
       Queue Size: 100
       Value: true
     - Class: rviz/Marker
@@ -106,7 +106,7 @@ Visualization Manager:
       Marker Topic: /delta/tracking_fusion/tracker/track_id_marker
       Name: Track ID Label
       Namespaces:
-        {}
+        "": true
       Queue Size: 100
       Value: true
     - Class: jsk_rviz_plugin/PictogramArray
@@ -157,6 +157,14 @@ Visualization Manager:
       Name: MarkerArray
       Namespaces:
         "": true
+      Queue Size: 100
+      Value: true
+    - Class: rviz/MarkerArray
+      Enabled: true
+      Marker Topic: /delta/prediction/oncoming_vehicle/visualization_gt
+      Name: MarkerArray
+      Namespaces:
+        {}
       Queue Size: 100
       Value: true
   Enabled: true
