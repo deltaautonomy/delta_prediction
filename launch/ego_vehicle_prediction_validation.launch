@@ -8,7 +8,7 @@
 
     <!-- Play rosbag record -->
     <include file="$(find delta_perception)/launch/play_rosbag.launch">
-        <arg name="filename" value="$(find delta_prediction)/validation_rosbags/prediction_test_$(arg version).bag" />
+        <arg name="filename" value="$(find delta_prediction)/validation_bags/prediction_test_$(arg version).bag" />
     </include>
 
     <!-- Run the perception pipeline -->

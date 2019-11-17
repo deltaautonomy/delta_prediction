@@ -352,10 +352,10 @@ class OncomingTrajectoryPrediction:
         self.lanes = LaneMarkerObject(slopes, intercepts)
 
     def uncompensate_velocity(self, track):
-        track[3] = track[3] + self.ego_state[0,3]
-        track[4] = track[4] + self.ego_state[0,4]
-        print('ego vx', self.ego_state[0,3], 'ego vy', self.ego_state[0,4])
-        print('track vx', track[3], 'track vy', track[4])
+        # track[3] = track[3] + self.ego_state[0,3]
+        # track[4] = track[4] + self.ego_state[0,4]
+        # print('ego vx', self.ego_state[0,3], 'ego vy', self.ego_state[0,4])
+        # print('track vx', track[3], 'track vy', track[4])
         return track
 
     def run(self):
@@ -378,8 +378,9 @@ class OncomingTrajectoryPrediction:
                 self.publishers['traj_pub'].publish(traj_array_msg)
                 self.publishers['traj_vis_pub'].publish(vis_array_msg)
             except:
-                print(len(self.tracks))
-                print(i)
+                # print(len(self.tracks))
+                # print(i)
+                pass
 
                 # pdb.set_trace()
 
@@ -392,7 +393,8 @@ def main():
 
     oncoming_predictor = OncomingTrajectoryPrediction(0.1, 2, publishers, False)
 
-    rospy.Subscriber('/delta/tracking_fusion/tracker/tracks', TrackArray, oncoming_predictor.tracker_callback)
+    # rospy.Subscriber('/delta/tracking_fusion/tracker/tracks', TrackArray, oncoming_predictor.tracker_callback)
+    rospy.Subscriber('/carla/ego_vehicle/tracks/ground_truth', TrackArray, oncoming_predictor.tracker_callback)
     rospy.Subscriber('/delta/prediction/ego_vehicle/state', EgoStateEstimate, oncoming_predictor.ego_state_callback)
     rospy.Subscriber('/delta/perception/lane_detection/markings', LaneMarkingArray, oncoming_predictor.lane_marking_callback)
     # In future if we use the OG for penalising invalid  predicted trajectories

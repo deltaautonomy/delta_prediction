@@ -1,5 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <launch>
+    <include
+        file="$(find delta_tracking_fusion)/launch/delta_tracking.launch">
+    </include>
+
     <!-- Run the oncoming prediction pipeline -->
     <node   
         pkg="delta_prediction"
@@ -7,5 +11,4 @@
         name="oncoming_trajectory_prediction"
         output="screen">
     </node>
-
 </launch>
