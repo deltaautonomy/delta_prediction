@@ -52,7 +52,7 @@ class CollisionDetectionClass:
         try:
             if len(self.ego_traj)!=0 and len(self.oncoming_trajs)!=0:
                 self.collision_check()
-        except:
+        except IndexError:
             pass
 
     def collision_check(self):
@@ -68,28 +68,26 @@ class CollisionDetectionClass:
                                     self.ego_traj[i][2]]), 
                         self.ego_bb]
                 if collisionChecking(ego_obj, other_obj):
-                    self.probability = np.clip(self.probability + 0.2, 0.0, 1.0)
-                    print('collision\n')
-                    sys.stdout.write("\rCollision Vehicle ID: %02d in %.1f secs with %.1f probability \t" % (
-                        key, i / 10.0, self.probability, ''))
+                    self.probability = np.clip(self.probability + 0.1, 0.0, 1.0)
+                    sys.stdout.write("\r*******Collision Vehicle ID: %02d in %.1f secs with %.1f probability*******\t" % (
+                        key, i / 10.0, self.probability))
                     sys.stdout.flush()
-                    self.publish_collision_msg(key, i/10.0)
+                    self.publish_collision_msg(key, i/10.0, value[i])
                     return
         self.probability = np.clip(self.probability - 0.3, 0.0, 1.0)
 
 
     def publish_collision_msg(self, track_id, ttc, state):
-        print("Collision")
         msg = CollisionDetection()
         msg.header.stamp = rospy.Time.now()
         msg.header.frame_id = EGO_VEHICLE_FRAME
-        msg.time_to_impact = ttc
+        msg.time_to_impact = rospy.Duration.from_sec(ttc)
         msg.probability = self.probability
-        msg.vehicle.track_id = track_id
-        msg.vehicle.state.x = state[0]
-        msg.vehicle.state.y = state[1]
-        msg.vehicle.state.vx = state[2]
-        msg.vehicle.state.vy = state[3]
+        msg.track_id = track_id
+        msg.state.x = state[0]
+        msg.state.y = state[1]
+        msg.state.vx = state[2]
+        msg.state.vy = state[3]
         self.publisher['collision'].publish(msg)
         
             

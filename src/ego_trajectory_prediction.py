@@ -18,6 +18,7 @@ from geometry_msgs.msg import Point
 from visualization_msgs.msg import Marker, MarkerArray
 from delta_msgs.msg import EgoStateEstimate, EgoStateEstimateArray
 from tf.transformations import euler_from_quaternion, quaternion_from_euler
+from numpy.linalg import inv
 
 cos = lambda theta: np.cos(theta)
 sin = lambda theta: np.sin(theta)
@@ -213,8 +214,8 @@ class EgoTrajectoryPrediction:
     def ego_vehicle_transform(self, x, y, yaw):
         ego_world = np.array(
             [
-                [np.cos(-yaw), -np.sin(-yaw), -x],
-                [np.sin(-yaw), np.cos(-yaw), -y],
+                [np.cos(yaw), -np.sin(yaw), x],
+                [np.sin(yaw), np.cos(yaw), y],
                 [0, 0, 1],
             ]
         )
@@ -242,14 +243,13 @@ class EgoTrajectoryPrediction:
             odometry_states = np.asarray(odometry_states)
             self.visualize(odometry_states, colour_odom, pub_odom)
 
-            # pdb.set_trace()
             predicted_states = states[:,0:2]
-            # r,c = np.shape(predicted_states)
-            # predicted_states = np.c_[predicted_states,np.ones(r)]
-            # predicted_states = np.matmul(ego_world_transform,predicted_states.T)
-            # predicted_states = predicted_states.T
-            # predicted_states = states[:,0:2]
-            # print(r)
+            r,c = np.shape(predicted_states)
+            predicted_states = np.c_[predicted_states,np.ones(r)]
+            predicted_states = np.matmul(inv(ego_world_transform),predicted_states.T)
+            predicted_states = predicted_states.T
+            predicted_states = states[:,0:2]
+            print(r)
             
 
             # Find the RMSE error between the predicted states and odometry
@@ -261,6 +261,7 @@ class EgoTrajectoryPrediction:
 
             # Find mean 
             if len(self.RMSE_window) > 100:
+            	pdb.set_trace()
                 window_err = self.RMSE_window[-100:]
                 window_err = np.asarray(window_err)
                 window_err = np.mean(window_err)
