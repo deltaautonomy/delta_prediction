@@ -20,7 +20,7 @@ import rospy
 from nav_msgs.msg import OccupancyGrid
 from visualization_msgs.msg import Marker, MarkerArray
 from geometry_msgs.msg import Point
-
+from diagnostic_msgs.msg import DiagnosticArray
 from tf.transformations import euler_from_quaternion, quaternion_from_euler
 from delta_msgs.msg import (LaneMarking,
                             LaneMarkingArray,
@@ -31,15 +31,18 @@ from delta_msgs.msg import (LaneMarking,
                             OncomingVehicleTrajectory,
                             OncomingVehicleTrajectoryArray)
 
+from utils import FPSLogger, make_diagnostics_status
 from oncoming_trajectory_validation import OncomingVehicleTrajectoryValidation
 
 
 cmap = plt.get_cmap('Set3')
 EGO_VEHICLE_FRAME = 'ego_vehicle'
 
+
 def sign(num):
     if num >= 0: return 1
     else: return -1
+
 
 class LaneMarkerObject:
     def __init__(self, slopes, intercepts):
@@ -330,6 +333,8 @@ class OncomingTrajectoryPrediction:
         self.ego_state = None
         self.tracks = None
         self.lanes = None
+        self.fps_logger = FPSLogger('Oncoming Prediction')
+
         if self.validation_mode:
             assert file_name != None and folder != None, "Validation Mode is on, please give the file and folder name"
             self.validation = OncomingVehicleTrajectoryValidation(folder, self.dt, self.T)
@@ -340,7 +345,7 @@ class OncomingTrajectoryPrediction:
     def tracker_callback(self, track_msg):
         self.tracks = []
         self.timestamp = track_msg.header.stamp
-        self.frame = track_msg.header.frame_id
+        self.frame_id = track_msg.header.frame_id
         for i in range(len(track_msg.tracks)):
             self.tracks.append(np.array([track_msg.tracks[i].track_id,
                                          track_msg.tracks[i].x,
@@ -389,6 +394,7 @@ class OncomingTrajectoryPrediction:
 
         if self.tracks != None and np.all(self.ego_state != None) and self.lanes != None:
             try:
+                self.fps_logger.lap()
                 for i in range(len(self.tracks)):
                     if not self.tracks[i][0] in self.predictions.keys():
                         self.predictions[self.tracks[i][0]] = Prediction(self.dt, self.T, self.tracks[i][0], self.verbose)
@@ -420,12 +426,21 @@ class OncomingTrajectoryPrediction:
                         sys.stdout.flush()
                     self.publishers['traj_vis_gt_pub'].publish(vis_array_gt_msg)
 
+                self.fps_logger.tick()
+                self.publish_diagnostics()
                 self.publishers['traj_pub'].publish(traj_array_msg)
                 self.publishers['traj_vis_pub'].publish(vis_array_msg)
 
             except:
                 # traceback.print_exc()
                 pass
+
+    def publish_diagnostics(self):
+        msg = DiagnosticArray()
+        msg.header.stamp = rospy.Time.now()
+        msg.status.append(make_diagnostics_status('oncoming_vehicle', 'prediction', str(self.fps_logger.fps)))
+        self.publishers['diag_pub'].publish(msg)
+
 
 def main():
     rospy.init_node('oncoming_trajectory_prediction', anonymous=True)
@@ -437,7 +452,7 @@ def main():
     publishers['traj_pub'] = rospy.Publisher("/delta/prediction/oncoming_vehicle/trajectory", OncomingVehicleTrajectoryArray, queue_size=5)
     publishers['traj_vis_pub'] = rospy.Publisher("/delta/prediction/oncoming_vehicle/visualization", MarkerArray, queue_size=5)
     publishers['traj_vis_gt_pub'] = rospy.Publisher("/delta/prediction/oncoming_vehicle/visualization_gt", MarkerArray, queue_size=5)
-
+    publishers['diag_pub'] = rospy.Publisher("/delta/prediction/oncoming_vehicle/diagnostics", DiagnosticArray, queue_size=5)
 
     oncoming_predictor = OncomingTrajectoryPrediction(0.1, 2, publishers, folder, file_name, True, False)
 
@@ -447,7 +462,6 @@ def main():
 
     # In future if we use the OG for penalising invalid  predicted trajectories
     # rospy.Subscriber('/delta/tracking_fusion/tracker/occupancy_grid', OccupancyGrid, oncoming_predictor.tracker_callback)
-
     
     r = rospy.Rate(10)
 
