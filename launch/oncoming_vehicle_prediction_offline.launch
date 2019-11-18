@@ -14,6 +14,14 @@
         output="screen">
     </node>
 
+    <!-- Run the oncoming prediction pipeline -->
+    <node   
+        pkg="delta_prediction"
+        type="collision_detection.py"
+        name="collision_detection"
+        output="screen">
+    </node>
+
     <node
         type="rviz" name="rviz" pkg="rviz" args="-d $(find delta_prediction)/prediction.rviz">
     </node>
