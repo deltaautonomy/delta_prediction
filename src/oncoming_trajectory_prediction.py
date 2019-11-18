@@ -35,7 +35,8 @@ from utils import FPSLogger, make_diagnostics_status
 from oncoming_trajectory_validation import OncomingVehicleTrajectoryValidation
 
 
-cmap = plt.get_cmap('Set3')
+cmap = plt.get_cmap('tab20')
+cmap_colors = [cmap(i) for i in range(20) if i % 2 == 0]
 EGO_VEHICLE_FRAME = 'ego_vehicle'
 
 
@@ -316,7 +317,7 @@ class Prediction:
         return self.trajectories[idx], \
                self.make_message(self.trajectories[idx]), \
                self.make_trajectory(self.trajectories[idx][:,:2], frame_id=EGO_VEHICLE_FRAME, \
-                                    marker_id=self.track_id, color=cmap(10*int(self.track_id % 10)))
+                                    marker_id=self.track_id, color=cmap_colors[int(self.track_id % 10)])
     
 
 class OncomingTrajectoryPrediction:
@@ -431,7 +432,7 @@ class OncomingTrajectoryPrediction:
                 self.publishers['traj_pub'].publish(traj_array_msg)
                 self.publishers['traj_vis_pub'].publish(vis_array_msg)
 
-            except:
+            except IndexError:
                 # traceback.print_exc()
                 pass
 
@@ -456,8 +457,8 @@ def main():
 
     oncoming_predictor = OncomingTrajectoryPrediction(0.1, 2, publishers, folder, file_name, False, False)
 
-    # rospy.Subscriber('/delta/tracking_fusion/tracker/tracks', TrackArray, oncoming_predictor.tracker_callback)
-    rospy.Subscriber('/carla/ego_vehicle/tracks/ground_truth', TrackArray, oncoming_predictor.tracker_callback)
+    rospy.Subscriber('/delta/tracking_fusion/tracker/tracks', TrackArray, oncoming_predictor.tracker_callback)
+    # rospy.Subscriber('/carla/ego_vehicle/tracks/ground_truth', TrackArray, oncoming_predictor.tracker_callback)
     rospy.Subscriber('/delta/prediction/ego_vehicle/state', EgoStateEstimate, oncoming_predictor.ego_state_callback)
     rospy.Subscriber('/delta/perception/lane_detection/markings', LaneMarkingArray, oncoming_predictor.lane_marking_callback)
 

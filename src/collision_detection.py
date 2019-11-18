@@ -1,8 +1,9 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-import numpy as np 
+import sys
 import math
+import numpy as np 
 
 import rospy
 from tf.transformations import euler_from_quaternion, quaternion_from_euler
@@ -68,7 +69,10 @@ class CollisionDetectionClass:
                         self.ego_bb]
                 if collisionChecking(ego_obj, other_obj):
                     self.probability = np.clip(self.probability + 0.2, 0.0, 1.0)
-                    print("Collision Vehicle ID: {} in {} secs with {} probability".format(key, i/10.0, self.probability))
+                    print('collision\n')
+                    sys.stdout.write("\rCollision Vehicle ID: %02d in %.1f secs with %.1f probability \t" % (
+                        key, i / 10.0, self.probability, ''))
+                    sys.stdout.flush()
                     self.publish_collision_msg(key, i/10.0)
                     return
         self.probability = np.clip(self.probability - 0.3, 0.0, 1.0)

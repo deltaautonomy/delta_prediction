@@ -201,8 +201,7 @@ class EgoTrajectoryPrediction:
             P.y = states[idx, 1]
             P.z = 0
             marker.points.append(P)
-            
-        marker.scale.x = 0.3
+        marker.scale.x = 2
         marker.color.a = colour[0]
         marker.color.r = colour[1]
         marker.color.g = colour[2]
@@ -398,7 +397,7 @@ class EgoTrajectoryPrediction:
         if self.validation:
             self.prediction_validator(states, current_time, pub_odom, ego_world_transform)
 
-        colour_pred = [1.0, 0.0, 1.0, 0.0 ]
+        colour_pred = [0.5, 0.30196078431372547, 0.6862745098039216, 0.2901960784313726]
         self.visualize(states, colour_pred, pub_pred)
 
         # Add publisher for ego state data
