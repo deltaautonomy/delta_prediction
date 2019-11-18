@@ -454,7 +454,7 @@ def main():
     publishers['traj_vis_gt_pub'] = rospy.Publisher("/delta/prediction/oncoming_vehicle/visualization_gt", MarkerArray, queue_size=5)
     publishers['diag_pub'] = rospy.Publisher("/delta/prediction/oncoming_vehicle/diagnostics", DiagnosticArray, queue_size=5)
 
-    oncoming_predictor = OncomingTrajectoryPrediction(0.1, 2, publishers, folder, file_name, True, False)
+    oncoming_predictor = OncomingTrajectoryPrediction(0.1, 2, publishers, folder, file_name, False, False)
 
     # rospy.Subscriber('/delta/tracking_fusion/tracker/tracks', TrackArray, oncoming_predictor.tracker_callback)
     rospy.Subscriber('/carla/ego_vehicle/tracks/ground_truth', TrackArray, oncoming_predictor.tracker_callback)

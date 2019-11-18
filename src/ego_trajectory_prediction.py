@@ -250,7 +250,7 @@ class EgoTrajectoryPrediction:
             # predicted_states = np.matmul(ego_world_transform,predicted_states.T)
             # predicted_states = predicted_states.T
             # predicted_states = states[:,0:2]
-            print(r)
+            # print(r)
             
 
             # Find the RMSE error between the predicted states and odometry
