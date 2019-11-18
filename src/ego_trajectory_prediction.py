@@ -8,6 +8,7 @@ Date    : Apr 16, 2019
 import os
 import sys
 import math
+import pdb
 
 import tf
 import numpy as np
@@ -15,7 +16,7 @@ import numpy as np
 from nav_msgs.msg import Odometry
 from geometry_msgs.msg import Point
 from visualization_msgs.msg import Marker, MarkerArray
-from delta_prediction.msg import EgoStateEstimate, EgoStateEstimateArray
+from delta_msgs.msg import EgoStateEstimate, EgoStateEstimateArray
 from tf.transformations import euler_from_quaternion, quaternion_from_euler
 
 cos = lambda theta: np.cos(theta)
@@ -225,6 +226,7 @@ class EgoTrajectoryPrediction:
         # Find total number of predictions 
         num_predictions = int(self.T / self.dt)
         colour_odom = [1.0, 0.0, 0.0, 1.0 ]
+        # pdb.set_trace()
 
         try:
             # Find odometry values to be compared. They are only a portion of the entire data seq
@@ -241,12 +243,14 @@ class EgoTrajectoryPrediction:
             odometry_states = np.asarray(odometry_states)
             self.visualize(odometry_states, colour_odom, pub_odom)
 
+            # pdb.set_trace()
             predicted_states = states[:,0:2]
-            r,c = np.shape(predicted_states)
-            predicted_states = np.c_[predicted_states,np.ones(r)]
-            predicted_states = np.matmul(ego_world_transform,predicted_states.T)
-            predicted_states = predicted_states.T
-            predicted_states = states[:,0:2]
+            # r,c = np.shape(predicted_states)
+            # predicted_states = np.c_[predicted_states,np.ones(r)]
+            # predicted_states = np.matmul(ego_world_transform,predicted_states.T)
+            # predicted_states = predicted_states.T
+            # predicted_states = states[:,0:2]
+            print(r)
             
 
             # Find the RMSE error between the predicted states and odometry
@@ -265,7 +269,7 @@ class EgoTrajectoryPrediction:
                 sys.stdout.flush()
 
         except Exception as e:
-            print("LOL")
+            print("Exception")
             pass
 
     def find_acceleration(self, xPos, yPos, xVel, yVel, curr_time):
