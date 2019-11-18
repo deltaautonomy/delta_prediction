@@ -336,7 +336,7 @@ class OncomingTrajectoryPrediction:
         self.fps_logger = FPSLogger('Oncoming Prediction')
 
         if self.validation_mode:
-            assert file_name != None and folder != None, "Validation Mode is on, please givev the file and folder name"
+            assert file_name != None and folder != None, "Validation Mode is on, please give the file and folder name"
             self.validation = OncomingVehicleTrajectoryValidation(folder, self.dt, self.T)
             self.validation.load(file_name)
             self.validation.filter_data()
@@ -477,16 +477,4 @@ def main():
 
 
 if __name__ == "__main__":
-    # oncoming_predictor = OncomingTrajectoryPrediction(0.1, 2, False)
-    # oncoming_predictor.lanes = LaneMarkerObject([-0.0004, -0.0004, -0.0004], [-6.25, -2.18, 1.23])
-    # oncoming_predictor.tracks = [np.array([0, -4.5, -2.3, 5.0, -0.1])]
-    # oncoming_predictor.ego_state = np.array([0, -4.5, -2.3, 5.0, -0.1, 1])
-    
-    # # oncoming_predictor.generate_trajectories()
-    # # predicted_trajectory, cov = oncoming_predictor.predict_with_motion_model(0, 0, 6, 0.1)
-    # # oncoming_predictor.plot(predicted_trajectory)
-    # oncoming_predictor.run()
-    
-    # l = LaneMarkerObject([-0.0004, -0.0004, -0.0004], [-6.25, -2.18, 1.23])
-    # print(l.are_points_same_side([0, 0], [-1, -1], 1))
     main()
