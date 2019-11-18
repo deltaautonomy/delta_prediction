@@ -13,6 +13,8 @@ from delta_msgs.msg import (EgoStateEstimateArray,
                             CollisionDetection)
 from obstacles import collisionChecking
 
+EGO_VEHICLE_FRAME = 'ego_vehicle'
+
 class CollisionDetectionClass:
     def __init__(self, publisher):
         self.publisher = publisher
@@ -21,6 +23,7 @@ class CollisionDetectionClass:
         self.npc_bb = np.array([5.5, 2.5])
         self.ego_bb = np.array([6.0, 3.0])
         self.traj_len=20
+        self.probability = 0.0
 
     def ego_prediction_callback(self, msg):
         self.ego_traj = []
@@ -64,8 +67,27 @@ class CollisionDetectionClass:
                                     self.ego_traj[i][2]]), 
                         self.ego_bb]
                 if collisionChecking(ego_obj, other_obj):
-                    print("Collision is going to happen")
+                    self.probability = np.clip(self.probability + 0.2, 0.0, 1.0)
+                    print("Collision Vehicle ID: {} in {} secs with {} probability".format(key, i/10.0, self.probability))
+                    self.publish_collision_msg(key, i/10.0)
                     return
+        self.probability = np.clip(self.probability - 0.3, 0.0, 1.0)
+
+
+    def publish_collision_msg(self, track_id, ttc, state):
+        print("Collision")
+        msg = CollisionDetection()
+        msg.header.stamp = rospy.Time.now()
+        msg.header.frame_id = EGO_VEHICLE_FRAME
+        msg.time_to_impact = ttc
+        msg.probability = self.probability
+        msg.vehicle.track_id = track_id
+        msg.vehicle.state.x = state[0]
+        msg.vehicle.state.y = state[1]
+        msg.vehicle.state.vx = state[2]
+        msg.vehicle.state.vy = state[3]
+        self.publisher['collision'].publish(msg)
+        
             
     def find_orientation(self, trajectory, index):
         if index == 0:
