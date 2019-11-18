@@ -8,6 +8,7 @@ Date    : Apr 16, 2019
 import os
 import sys
 import math
+import pdb
 
 import tf
 import numpy as np
@@ -33,7 +34,7 @@ class EgoTrajectoryPrediction:
         self.validation = False
         self.odom = None
         self.RMSE_window = []
-        self.old_state = np.zeros(4)
+        self.old_state = np.zeros(5)
 
     # We will make the following forward proprogation models here.
     # 1. Constant acceleration model
@@ -209,11 +210,23 @@ class EgoTrajectoryPrediction:
         # marker.frame_locked = True
         # marker_array.markers.append(marker)
         pub.publish(marker)
+        
+    def ego_vehicle_transform(self, x, y, yaw):
+        ego_world = np.array(
+            [
+                [np.cos(-yaw), -np.sin(-yaw), -x],
+                [np.sin(-yaw), np.cos(-yaw), -y],
+                [0, 0, 1],
+            ]
+        )
+        return ego_world
 
-    def prediction_validator(self, states, current_time, pub_odom):
+
+    def prediction_validator(self, states, current_time, pub_odom, ego_world_transform):
         # Find total number of predictions 
         num_predictions = int(self.T / self.dt)
         colour_odom = [1.0, 0.0, 0.0, 1.0 ]
+        # pdb.set_trace()
 
         try:
             # Find odometry values to be compared. They are only a portion of the entire data seq
@@ -230,7 +243,15 @@ class EgoTrajectoryPrediction:
             odometry_states = np.asarray(odometry_states)
             self.visualize(odometry_states, colour_odom, pub_odom)
 
+            # pdb.set_trace()
             predicted_states = states[:,0:2]
+            # r,c = np.shape(predicted_states)
+            # predicted_states = np.c_[predicted_states,np.ones(r)]
+            # predicted_states = np.matmul(ego_world_transform,predicted_states.T)
+            # predicted_states = predicted_states.T
+            # predicted_states = states[:,0:2]
+            # print(r)
+            
 
             # Find the RMSE error between the predicted states and odometry
             err =  np.linalg.norm((predicted_states - odometry_states), axis = 1)
@@ -248,24 +269,27 @@ class EgoTrajectoryPrediction:
                 sys.stdout.flush()
 
         except Exception as e:
+            print("Exception")
             pass
 
-    def find_acceleration(self, xPos, yPos, xVel, yVel):
+    def find_acceleration(self, xPos, yPos, xVel, yVel, curr_time):
         if self.old_state[0] != 0 and self.old_state[1] != 0:
             if (xPos != self.old_state[0]):
-                xAcc = (xVel**2 - self.old_state[2]**2) / (2*(xPos - self.old_state[0]))
+                # xAcc = abs((xVel**2 - self.old_state[2]**2) / (2*(xPos - self.old_state[0])))
+                xAcc = (xVel - self.old_state[2])/(curr_time-self.old_state[4])
             else:
                 xAcc = 0
             
             if (yPos != self.old_state[1]):
-                yAcc = (yVel**2 - self.old_state[3]**2) / (2*(yPos - self.old_state[1]))
+                # yAcc = (yVel**2 - self.old_state[3]**2) / (2*(yPos - self.old_state[1]))
+                yAcc = (yVel - self.old_state[3])/(curr_time-self.old_state[4])
             else:
                 yAcc = 0
         else:
             xAcc = 0
             yAcc = 0
         
-        self.old_state = np.array([xPos, yPos, xVel, yVel])
+        self.old_state = np.array([xPos, yPos, xVel, yVel, curr_time])
         return xAcc, yAcc
 
     def publish_state(self, motion_model, states, pub, accel):
@@ -358,19 +382,21 @@ class EgoTrajectoryPrediction:
 
         # Find yaw rate and determine model to use
         yaw_rate = odom_msg.twist.twist.angular.z
-        xAcc, yAcc = 0, 0
+        # xAcc, yAcc = 0, 0
+        xAcc, yAcc = self.find_acceleration(xPos, yPos, xVel, yVel, current_time)
         # If yaw rate is less than 0.01 use the CA model, else use the CTRV model
         if np.abs(yaw_rate) < 1e-6:
             motion_model = 'CA'
-            xAcc, yAcc = self.find_acceleration(xPos, yPos, xVel, yVel)
             states, covariance = self.constant_acceleration(0, 0, xVel, yVel, xAcc, yAcc)
         else:
             motion_model = 'CTRV'
             vel = self.sign(xVel) * math.sqrt(xVel**2 + yVel**2)
             states, covariance = self.constant_turn_rate(0, 0, 0, vel, yaw_rate)
 
+        ego_world_transform = self.ego_vehicle_transform(xPos,yPos,yaw)
+
         if self.validation:
-            self.prediction_validator(states, current_time, pub_odom)
+            self.prediction_validator(states, current_time, pub_odom, ego_world_transform)
 
         colour_pred = [1.0, 0.0, 1.0, 0.0 ]
         self.visualize(states, colour_pred, pub_pred)

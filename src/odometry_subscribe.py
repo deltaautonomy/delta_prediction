@@ -27,7 +27,7 @@ def odometry_callback(odom):
 	yPos = odom.pose.pose.position.y
 	# Save time
 	odom_time = odom.header.stamp.to_sec()
-	print(odom_time)
+	print(ODOMETRY)
 	# Append these to global
 	global ODOMETRY
 	ODOMETRY.append([xPos, yPos, odom_time])

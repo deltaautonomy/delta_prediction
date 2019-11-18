@@ -375,8 +375,8 @@ class OncomingTrajectoryPrediction:
         self.lanes = LaneMarkerObject(slopes, intercepts)
 
     def uncompensate_velocity(self, track):
-        track[3] = track[3] + self.ego_state[0,3]
-        track[4] = track[4] + self.ego_state[0,4]
+        # track[3] = track[3] + self.ego_state[0,3]
+        # track[4] = track[4] + self.ego_state[0,4]
         # print('ego vx', self.ego_state[0,3], 'ego vy', self.ego_state[0,4])
         # print('track vx', track[3], 'track vy', track[4])
         return track
@@ -454,9 +454,10 @@ def main():
     publishers['traj_vis_gt_pub'] = rospy.Publisher("/delta/prediction/oncoming_vehicle/visualization_gt", MarkerArray, queue_size=5)
     publishers['diag_pub'] = rospy.Publisher("/delta/prediction/oncoming_vehicle/diagnostics", DiagnosticArray, queue_size=5)
 
-    oncoming_predictor = OncomingTrajectoryPrediction(0.1, 2, publishers, folder, file_name, True, False)
+    oncoming_predictor = OncomingTrajectoryPrediction(0.1, 2, publishers, folder, file_name, False, False)
 
-    rospy.Subscriber('/delta/tracking_fusion/tracker/tracks', TrackArray, oncoming_predictor.tracker_callback)
+    # rospy.Subscriber('/delta/tracking_fusion/tracker/tracks', TrackArray, oncoming_predictor.tracker_callback)
+    rospy.Subscriber('/carla/ego_vehicle/tracks/ground_truth', TrackArray, oncoming_predictor.tracker_callback)
     rospy.Subscriber('/delta/prediction/ego_vehicle/state', EgoStateEstimate, oncoming_predictor.ego_state_callback)
     rospy.Subscriber('/delta/perception/lane_detection/markings', LaneMarkingArray, oncoming_predictor.lane_marking_callback)
 

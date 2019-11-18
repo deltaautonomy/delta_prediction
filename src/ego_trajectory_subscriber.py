@@ -9,6 +9,7 @@ Date    : Apr 17, 2019
 
 import os
 import math
+import pdb
 
 import rospy
 from nav_msgs.msg import Odometry
@@ -33,10 +34,10 @@ def main():
     rospy.init_node('ego_trajectory_prediction', anonymous=True)
     ego_predictor = EgoTrajectoryPrediction(0.01, 3.0)
 
-    if rospy.has_param('odom_path'):
-        odom_path = rospy.get_param('odom_path')
-        print('Odometry File:', odom_path)
-        ego_predictor.set_odom_path(odom_path)
+    # if rospy.has_param('odom_path'):
+    #     odom_path = rospy.get_param('odom_path')
+    #     print('Odometry File:', odom_path)
+    #     ego_predictor.set_odom_path(odom_path)
 
     rospy.Subscriber("/carla/ego_vehicle/odometry", Odometry, ego_predictor.callback)
     pub_vis = rospy.Publisher('/delta/prediction/ego', Marker, queue_size=10)

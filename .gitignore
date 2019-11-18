@@ -1,7 +1,7 @@
-# Ignore files without extensions
-* 
-!/**/
-!*.*
+# Ignore large files
+src/odometry_data.npy
+validation_bags/
+validation_numpy/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
