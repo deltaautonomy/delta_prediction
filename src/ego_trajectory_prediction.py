@@ -18,6 +18,8 @@ from geometry_msgs.msg import Point
 from visualization_msgs.msg import Marker, MarkerArray
 from delta_msgs.msg import EgoStateEstimate, EgoStateEstimateArray
 from tf.transformations import euler_from_quaternion, quaternion_from_euler
+from numpy.linalg import inv
+from collections import OrderedDict
 
 cos = lambda theta: np.cos(theta)
 sin = lambda theta: np.sin(theta)
@@ -35,6 +37,10 @@ class EgoTrajectoryPrediction:
         self.odom = None
         self.RMSE_window = []
         self.old_state = np.zeros(5)
+        self.ego_validation_array = []
+        self.validation_dict = OrderedDict()
+        self.validation_odom = []
+        self.current_transform = np.zeros([3,3])
 
     # We will make the following forward proprogation models here.
     # 1. Constant acceleration model
@@ -201,8 +207,7 @@ class EgoTrajectoryPrediction:
             P.y = states[idx, 1]
             P.z = 0
             marker.points.append(P)
-            
-        marker.scale.x = 0.3
+        marker.scale.x = 2
         marker.color.a = colour[0]
         marker.color.r = colour[1]
         marker.color.g = colour[2]
@@ -214,28 +219,31 @@ class EgoTrajectoryPrediction:
     def ego_vehicle_transform(self, x, y, yaw):
         ego_world = np.array(
             [
-                [np.cos(-yaw), -np.sin(-yaw), -x],
-                [np.sin(-yaw), np.cos(-yaw), -y],
+                [np.cos(yaw), -np.sin(yaw), x],
+                [np.sin(yaw), np.cos(yaw), y],
                 [0, 0, 1],
             ]
         )
         return ego_world
 
+    def find_nearest(self, array, value):
+        array = np.asarray(array)
+        idx = (np.abs(array - value)).argmin()
+        return idx
 
     def prediction_validator(self, states, current_time, pub_odom, ego_world_transform):
         # Find total number of predictions 
         num_predictions = int(self.T / self.dt)
         colour_odom = [1.0, 0.0, 0.0, 1.0 ]
         # pdb.set_trace()
-
         try:
             # Find odometry values to be compared. They are only a portion of the entire data seq
             odometry_states = []
             odom_timestep = 0
             while odom_timestep <= self.T:
                 current_time += self.dt
-                index = self.odom[:, 2].searchsorted(current_time)
-
+                # index = self.odom[:, 2].searchsorted(current_time)
+                index = self.find_nearest(self.odom[:,2],current_time)
                 odom_timestep += self.dt
                 val = self.odom[index, 0:2]
                 odometry_states.append(val)
@@ -243,15 +251,14 @@ class EgoTrajectoryPrediction:
             odometry_states = np.asarray(odometry_states)
             self.visualize(odometry_states, colour_odom, pub_odom)
 
-            # pdb.set_trace()
             predicted_states = states[:,0:2]
-            # r,c = np.shape(predicted_states)
-            # predicted_states = np.c_[predicted_states,np.ones(r)]
-            # predicted_states = np.matmul(ego_world_transform,predicted_states.T)
-            # predicted_states = predicted_states.T
-            # predicted_states = states[:,0:2]
-            # print(r)
-            
+            r,c = np.shape(predicted_states)
+            predicted_states = np.c_[predicted_states,np.ones(r)]
+            # Transform predicted states to world frame
+            predicted_states = np.matmul(ego_world_transform,predicted_states.T)
+            predicted_states = predicted_states.T
+            predicted_states = predicted_states[:,0:2]
+            # print(predicted_states)
 
             # Find the RMSE error between the predicted states and odometry
             err =  np.linalg.norm((predicted_states - odometry_states), axis = 1)
@@ -265,12 +272,18 @@ class EgoTrajectoryPrediction:
                 window_err = self.RMSE_window[-100:]
                 window_err = np.asarray(window_err)
                 window_err = np.mean(window_err)
+                self.ego_validation_array.append(window_err)
                 sys.stdout.write("\r\033[94m%s Prediction Error %.3f m %s\033[00m" % ("*"*20, window_err, "*"*20))
                 sys.stdout.flush()
 
         except Exception as e:
             print("Exception")
             pass
+    def publish_validation(self):
+        for err in self.ego_validation_array:
+            print("Ego Prediction Error: %.3f\n"%(err))
+            # sys.stdout.write("\r\033[94m%s Prediction Error %.3f m %s\033[00m" % ("*"*20, err, "*"*20))
+            # sys.stdout.flush()
 
     def find_acceleration(self, xPos, yPos, xVel, yVel, curr_time):
         if self.old_state[0] != 0 and self.old_state[1] != 0:
@@ -356,6 +369,62 @@ class EgoTrajectoryPrediction:
         if self.odom is None and self.validation: return
         self.odom_msg = odom
 
+    # def online_validation(self):
+    #     num_predictions = int(self.T / self.dt)
+    #     try:
+    #         debug_count = 0
+    #         self.validation_odom = np.asarray(self.validation_odom)
+    #         print(self.validation_odom)
+    #         print('\n\n\n\n\n\n\n')
+    #         for key in self.validation_dict:
+    #             current_time = key
+    #             # print(current_time)
+    #             odometry_states = []
+    #             odom_timestep = 0
+    #             while odom_timestep <= self.T:
+    #                 current_time += self.dt
+    #                 # print(type(current_time))
+    #                 # index = self.validation_odom[:, 2].searchsorted(current_time)
+    #                 index = self.find_nearest(self.validation_odom[:,2],current_time)
+    #                 # print(index)
+    #                 odom_timestep += self.dt
+    #                 val = self.validation_odom[index, 0:2]
+    #                 odometry_states.append(val)
+
+    #             odometry_states = np.asarray(odometry_states)
+    #             # print(odometry_states)
+    #         # self.visualize(odometry_states, colour_odom, pub_odom)
+
+    #             predicted_states = self.validation_dict[key]
+    #             r,c = np.shape(predicted_states)
+    #             predicted_states = np.c_[predicted_states,np.ones(r)]
+    #             # Transform predicted states to world frame
+    #             predicted_states = np.matmul(self.current_transform,predicted_states.T)
+    #             predicted_states = predicted_states.T
+    #             predicted_states = predicted_states[:,0:2]
+    #             print(predicted_states)
+            
+
+    #             # Find the RMSE error between the predicted states and odometry
+    #             err =  np.linalg.norm((predicted_states - odometry_states), axis = 1)
+            
+    #             # Evaluate RMSE
+    #             RMSE = np.sum(err) / num_predictions
+    #             self.RMSE_window.append(RMSE)
+
+    #             if len(self.RMSE_window) > 100:
+    #                 window_err = self.RMSE_window[-100:]
+    #                 window_err = np.asarray(window_err)
+    #                 window_err = np.mean(window_err)
+    #                 self.ego_validation_array.append(window_err)
+    #             debug_count +=1
+    #             if (debug_count == 3):
+    #                 break
+
+    #     except Exception as e:
+    #         print("Exception")
+    #         pass
+                
     def run(self, pub_pred, pub_odom, pub_state, pub_traj):
         odom_msg = self.odom_msg
         # Motion model variable
@@ -363,10 +432,9 @@ class EgoTrajectoryPrediction:
 
         # Find current time
         current_time = odom_msg.header.stamp.to_sec()
-
         # Find x and y position
         xPos, yPos = odom_msg.pose.pose.position.x, odom_msg.pose.pose.position.y
-
+        # print(xPos,yPos,current_time)
         # Find x and y velocity components
         xVel, yVel = odom_msg.twist.twist.linear.x, odom_msg.twist.twist.linear.y
         
@@ -393,12 +461,17 @@ class EgoTrajectoryPrediction:
             vel = self.sign(xVel) * math.sqrt(xVel**2 + yVel**2)
             states, covariance = self.constant_turn_rate(0, 0, 0, vel, yaw_rate)
 
-        ego_world_transform = self.ego_vehicle_transform(xPos,yPos,yaw)
 
+        ego_world_transform = self.ego_vehicle_transform(xPos,yPos,yaw)
+        self.current_transform = ego_world_transform
         if self.validation:
             self.prediction_validator(states, current_time, pub_odom, ego_world_transform)
+        
+        # Online Validation
+        # self.validation_dict[current_time] = states[:,0:2]
+        # self.validation_odom.append([xPos,yPos,current_time])
 
-        colour_pred = [1.0, 0.0, 1.0, 0.0 ]
+        colour_pred = [0.5, 0.30196078431372547, 0.6862745098039216, 0.2901960784313726]
         self.visualize(states, colour_pred, pub_pred)
 
         # Add publisher for ego state data

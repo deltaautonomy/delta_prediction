@@ -29,8 +29,8 @@ class FPSLogger:
         self.last = time.time()
 
     def tick(self, count=1):
-        self.total_time += time.time() - self.last
-        self.total_frames += count
+        self.total_time = time.time() - self.last
+        self.total_frames = count
         self.fps = self.total_frames / self.total_time
 
     def log(self, tick=False):
