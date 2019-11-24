@@ -112,13 +112,13 @@ def collisionChecking(obj1, obj2):
     axes = createCollisionAxis(ax1, ax2)
     collision = checkProjection(box1, box2, axes)
 
-    fig,ax = plt.subplots(1)
-    box1.draw(ax, 'b')
-    box2.draw(ax)
+    # fig,ax = plt.subplots(1)
+    # box1.draw(ax, 'b')
+    # box2.draw(ax)
 
-    ax.set_xlim(-3,3)
-    ax.set_ylim(-3,3)
-    plt.show()
+    # ax.set_xlim(-3,3)
+    # ax.set_ylim(-3,3)
+    # plt.show()
     # plt.pause(0.001)
 
     return collision

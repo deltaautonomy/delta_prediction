@@ -3,7 +3,7 @@
 
     <!-- Play rosbag record -->
     <include file="$(find delta_perception)/launch/play_rosbag.launch">
-        <arg name="filename" value="/media/karmesh/DATA/CMU/MRSD_Project/Dataset/prediction_debug_4.bag" />
+        <arg name="filename" value="/media/karmesh/DATA/CMU/MRSD_Project/Dataset/prediction_test_v8.bag" />
     </include>
 
     <!-- Run the oncoming prediction pipeline -->

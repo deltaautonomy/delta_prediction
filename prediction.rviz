@@ -5,6 +5,9 @@ Panels:
     Property Tree Widget:
       Expanded:
         - /Perception Outputs Image1
+        - /On-Coming Vehicles Trajectory1
+        - /MarkerArray1
+        - /MarkerArray2
       Splitter Ratio: 0.5
     Tree Height: 328
   - Class: rviz/Selection
@@ -98,7 +101,7 @@ Visualization Manager:
       Marker Topic: /delta/perception/radar_track_marker
       Name: Radar Track Marker
       Namespaces:
-        {}
+        "": true
       Queue Size: 100
       Value: true
     - Class: rviz/Marker
@@ -124,13 +127,13 @@ Visualization Manager:
       Queue Size: 100
       Value: true
     - Class: rviz/Marker
-      Enabled: true
+      Enabled: false
       Marker Topic: /delta/tracking_fusion/tracker/trajectory_marker
       Name: On-Coming Vehicles Trajectory
       Namespaces:
-        "": true
+        {}
       Queue Size: 100
-      Value: true
+      Value: false
     - Alpha: 0.699999988
       Class: rviz/Map
       Color Scheme: raw
@@ -164,7 +167,7 @@ Visualization Manager:
       Marker Topic: /delta/prediction/oncoming_vehicle/visualization_gt
       Name: MarkerArray
       Namespaces:
-        {}
+        "": true
       Queue Size: 100
       Value: true
   Enabled: true

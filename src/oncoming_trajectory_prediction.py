@@ -36,7 +36,8 @@ from utils import FPSLogger, make_diagnostics_status
 from oncoming_trajectory_validation import OncomingVehicleTrajectoryValidation
 
 
-cmap = plt.get_cmap('tab20')
+# cmap = plt.get_cmap('tab20')
+cmap = plt.get_cmap('Set3')
 cmap_colors = [cmap(i) for i in range(20) if i % 2 == 0]
 EGO_VEHICLE_FRAME = 'ego_vehicle'
 
@@ -382,8 +383,8 @@ class OncomingTrajectoryPrediction:
         self.lanes = LaneMarkerObject(slopes, intercepts)
 
     def uncompensate_velocity(self, track):
-        track[3] = track[3] + self.ego_state[0,3]
-        track[4] = track[4] + self.ego_state[0,4]
+        track[3] = track[3] - self.ego_state[0,3]
+        track[4] = track[4] - self.ego_state[0,4]
         # print('ego vx', self.ego_state[0,3], 'ego vy', self.ego_state[0,4])
         # print('track vx', track[3], 'track vy', track[4])
         return track
@@ -412,15 +413,19 @@ class OncomingTrajectoryPrediction:
                     if self.validation_mode:
                         # Visualization
                         trajectory_gt = self.validation.get_gt_trajectory(self.tracks[i][0], self.timestamp.to_sec())
-                        traj_vis_gt = self.predictions[self.tracks[i][0]].make_trajectory(trajectory_gt[:,:2], frame_id=EGO_VEHICLE_FRAME, \
-                                    marker_id=self.tracks[i][0], color=cmap(int(i)+5))
-                        vis_array_gt_msg.markers.append(traj_vis_gt)
 
-                        # Error
-                        tmp = self.validation.validator(traj_np, self.tracks[i][0], self.timestamp.to_sec())
-                        if tmp != -1:
-                            RMSE_sum += tmp 
-                            valid_tracks += 1
+                        if trajectory_gt is not None:
+                            traj_vis_gt = self.predictions[self.tracks[i][0]].make_trajectory(trajectory_gt[:,:2], frame_id=EGO_VEHICLE_FRAME, \
+                                        marker_id=self.tracks[i][0], color=cmap(int(i)+5))
+                            vis_array_gt_msg.markers.append(traj_vis_gt)
+
+                            # Error
+                            tmp = self.validation.validator(traj_np, self.tracks[i][0], self.timestamp.to_sec())
+                            if tmp != -1:
+                                RMSE_sum += tmp 
+                                valid_tracks += 1
+                        else:
+                            print(self.tracks[i][0])
 
                 if self.validation_mode:
                     if valid_tracks != 0: 
@@ -461,7 +466,11 @@ def main():
     # Handle params and topics
     folder = rospy.get_param('oncoming_validation_folder', '/home/karmesh/delta_ws/src/delta_prediction/validation_dataset')
     file_name = rospy.get_param('oncoming_validation_file', 'oncoming_vehicle')
-    validation_mode = rospy.get_param('validation_mode', True)
+    validation_mode = rospy.get_param('validation_mode', False)
+
+    print('Folder for validation:', folder)
+    print('File for validation:', file_name)
+    print('Validation Mode:', validation_mode)
 
     # Publish output topic
     publishers = {}

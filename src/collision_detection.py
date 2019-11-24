@@ -76,6 +76,7 @@ class CollisionDetectionClass:
                     else: 
                         self.probability[key] = np.clip(self.probability[key] + 0.1, 0.0, 1.0)
                     
+                    # print on screen
                     sys.stdout.write("\r********* Collision Vehicle ID: %02d in %.1f secs with %.1f probability *********\t" % (
                         key, i / 10.0, self.probability[key]))
                     sys.stdout.flush()

@@ -33,11 +33,11 @@ class OncomingVehicleTrajectoryValidation:
         for i in range(len(track_msg.tracks)):
 
             current_data = np.array([timestamp,
-                        track_msg.tracks[i].track_id,
-                        track_msg.tracks[i].x,
-                        track_msg.tracks[i].y,
-                        track_msg.tracks[i].vx,
-                        track_msg.tracks[i].vy])
+                                    track_msg.tracks[i].track_id,
+                                    track_msg.tracks[i].x,
+                                    track_msg.tracks[i].y,
+                                    track_msg.tracks[i].vx,
+                                    track_msg.tracks[i].vy])
 
             if track_msg.tracks[i].track_id in self.data:
                 last_data = self.data[track_msg.tracks[i].track_id]
@@ -74,11 +74,15 @@ class OncomingVehicleTrajectoryValidation:
         self.data = new_data
                 
     def get_gt_trajectory(self, track_id, time):
-        gt_traj = self.data[track_id]
-        gt_traj = gt_traj[gt_traj[:, 0] > time - self.dt]
-        gt_traj = gt_traj[gt_traj[:, 0] < time + self.T + self.dt]
+        if track_id in self.data:
+            gt_traj = self.data[track_id]
+            gt_traj = gt_traj[gt_traj[:, 0] > time - self.dt]
+            gt_traj = gt_traj[gt_traj[:, 0] < time + self.T + self.dt]
 
-        return gt_traj[:,2:6]
+            return gt_traj[:,2:6]
+        
+        else:
+            return None
 
     def validator(self, trajectory, track_id, time):
         gt_traj = self.data[track_id]
@@ -121,7 +125,7 @@ def main():
 
 
     oncoming_validator = OncomingVehicleTrajectoryValidation(folder, 0.1, 2, 2.1)
-    rospy.Subscriber(fused_track, TrackArray, oncoming_validator.tracker_gt_callback)
+    rospy.Subscriber(ground_truth_track, TrackArray, oncoming_validator.tracker_gt_callback)
 
     try:
         while not rospy.is_shutdown():
