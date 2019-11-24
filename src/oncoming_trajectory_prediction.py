@@ -36,8 +36,8 @@ from utils import FPSLogger, make_diagnostics_status
 from oncoming_trajectory_validation import OncomingVehicleTrajectoryValidation
 
 
-# cmap = plt.get_cmap('tab20')
-cmap = plt.get_cmap('Set3')
+cmap = plt.get_cmap('tab20')
+# cmap = plt.get_cmap('Set3')
 cmap_colors = [cmap(i) for i in range(20) if i % 2 == 0]
 EGO_VEHICLE_FRAME = 'ego_vehicle'
 
@@ -441,7 +441,7 @@ class OncomingTrajectoryPrediction:
                 self.publishers['traj_pub'].publish(traj_array_msg)
                 self.publishers['traj_vis_pub'].publish(vis_array_msg)
 
-            except IndexError:
+            except IndexError or KeyError:
                 # traceback.print_exc()
                 pass
 
