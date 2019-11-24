@@ -112,13 +112,13 @@ def collisionChecking(obj1, obj2):
     axes = createCollisionAxis(ax1, ax2)
     collision = checkProjection(box1, box2, axes)
 
-    # fig,ax = plt.subplots(1)
-    # box1.draw(ax, 'b')
-    # box2.draw(ax)
+    fig,ax = plt.subplots(1)
+    box1.draw(ax, 'b')
+    box2.draw(ax)
 
-    # ax.set_xlim(-20,20)
-    # ax.set_ylim(-20,20)
-
+    ax.set_xlim(-3,3)
+    ax.set_ylim(-3,3)
+    plt.show()
     # plt.pause(0.001)
 
     return collision
@@ -128,7 +128,7 @@ if __name__ == "__main__":
 
     # x, y, orienation    dim_x dim_y
     ref_cube = [np.array([0.0, 0.0, 0.0]), np.array([1, 1])]
-    test_set = [np.array([0.0, 0.75, np.pi/2]), np.array([1.0, 1.5])]
+    test_set = [np.array([0.0, 0.75, np.pi/3]), np.array([1.0, 1.5])]
 
     print(collisionChecking(ref_cube, test_set))
     # r = Obstacle(ref_cube[0], ref_cube[1])

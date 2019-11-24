@@ -375,8 +375,8 @@ class OncomingTrajectoryPrediction:
         self.lanes = LaneMarkerObject(slopes, intercepts)
 
     def uncompensate_velocity(self, track):
-        # track[3] = track[3] + self.ego_state[0,3]
-        # track[4] = track[4] + self.ego_state[0,4]
+        track[3] = track[3] + self.ego_state[0,3]
+        track[4] = track[4] + self.ego_state[0,4]
         # print('ego vx', self.ego_state[0,3], 'ego vy', self.ego_state[0,4])
         # print('track vx', track[3], 'track vy', track[4])
         return track
@@ -445,19 +445,25 @@ class OncomingTrajectoryPrediction:
 def main():
     rospy.init_node('oncoming_trajectory_prediction', anonymous=True)
 
+    # Handle params and topics
     folder = rospy.get_param('oncoming_validation_folder', '/home/karmesh/delta_ws/src/delta_prediction/validation_dataset')
     file_name = rospy.get_param('oncoming_validation_file', 'oncoming_vehicle')
+    validation_mode = rospy.get_param('validation_mode', True)
 
+    # Publish output topic
     publishers = {}
     publishers['traj_pub'] = rospy.Publisher("/delta/prediction/oncoming_vehicle/trajectory", OncomingVehicleTrajectoryArray, queue_size=5)
     publishers['traj_vis_pub'] = rospy.Publisher("/delta/prediction/oncoming_vehicle/visualization", MarkerArray, queue_size=5)
     publishers['traj_vis_gt_pub'] = rospy.Publisher("/delta/prediction/oncoming_vehicle/visualization_gt", MarkerArray, queue_size=5)
     publishers['diag_pub'] = rospy.Publisher("/delta/prediction/oncoming_vehicle/diagnostics", DiagnosticArray, queue_size=5)
 
-    oncoming_predictor = OncomingTrajectoryPrediction(0.1, 2, publishers, folder, file_name, False, False)
+    oncoming_predictor = OncomingTrajectoryPrediction(0.1, 2, publishers, folder, file_name, validation_mode, False)
 
-    # rospy.Subscriber('/delta/tracking_fusion/tracker/tracks', TrackArray, oncoming_predictor.tracker_callback)
-    rospy.Subscriber('/carla/ego_vehicle/tracks/ground_truth', TrackArray, oncoming_predictor.tracker_callback)
+    # Subscribe to topics
+    if validation_mode:
+        rospy.Subscriber('/carla/ego_vehicle/tracks/ground_truth', TrackArray, oncoming_predictor.tracker_callback)
+    else:
+        rospy.Subscriber('/delta/tracking_fusion/tracker/tracks', TrackArray, oncoming_predictor.tracker_callback)
     rospy.Subscriber('/delta/prediction/ego_vehicle/state', EgoStateEstimate, oncoming_predictor.ego_state_callback)
     rospy.Subscriber('/delta/perception/lane_detection/markings', LaneMarkingArray, oncoming_predictor.lane_marking_callback)
 
@@ -470,8 +476,9 @@ def main():
         while not rospy.is_shutdown():
             oncoming_predictor.run()
             r.sleep()
-        window_err = np.mean(np.asarray(oncoming_predictor.RMSE_window))
-        sys.stdout.write("\r\033[94m%s Average Vehicle Prediction Error %.3f m %s\033[00m" % ("*"*20, window_err, "*"*20))
+        if validation_mode:
+            window_err = np.mean(np.asarray(oncoming_predictor.RMSE_window))
+            sys.stdout.write("\r\033[94m%s Average Vehicle Prediction Error %.3f m %s\033[00m" % ("*"*20, window_err, "*"*20))
     except rospy.ROSInterruptException:
         rospy.loginfo('Shutting down')
 
