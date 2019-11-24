@@ -59,7 +59,7 @@ def main():
 	        fps_logger.tick()
 
 	        publish_diagnostics(pub_diag)
-	        r.sleep()
+            r.sleep()
 
     except rospy.ROSInterruptException:
         rospy.loginfo('Shutting down')

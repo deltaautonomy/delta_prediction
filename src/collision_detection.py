@@ -7,6 +7,7 @@ import numpy as np
 
 import rospy
 from tf.transformations import euler_from_quaternion, quaternion_from_euler
+from visualization_msgs.msg import Marker
 
  
 from delta_msgs.msg import (EgoStateEstimateArray,
@@ -17,14 +18,15 @@ from obstacles import collisionChecking
 EGO_VEHICLE_FRAME = 'ego_vehicle'
 
 class CollisionDetectionClass:
-    def __init__(self, publisher):
+    def __init__(self, publisher, collision_prob_threshold):
         self.publisher = publisher
         self.ego_traj = []
         self.oncoming_trajs = {}
         self.npc_bb = np.array([5.5, 2.5])
         self.ego_bb = np.array([6.0, 3.0])
         self.traj_len=20
-        self.probability = 0.0
+        self.probability = {}
+        self.collision_prob_threshold = collision_prob_threshold
 
     def ego_prediction_callback(self, msg):
         self.ego_traj = []
@@ -60,21 +62,33 @@ class CollisionDetectionClass:
             for key, value in self.oncoming_trajs.items():
                 orientation = self.find_orientation(value, i)
                 other_obj = [np.array([value[i][0], 
-                                    value[i][1], 
-                                    orientation]), 
-                            self.npc_bb]
+                                       value[i][1], 
+                                       orientation]), 
+                                       self.npc_bb]
                 ego_obj = [np.array([self.ego_traj[i][0], 
-                                    self.ego_traj[i][1], 
-                                    self.ego_traj[i][2]]), 
-                        self.ego_bb]
+                                     self.ego_traj[i][1], 
+                                     self.ego_traj[i][2]]), 
+                                     self.ego_bb]
                 if collisionChecking(ego_obj, other_obj):
-                    self.probability = np.clip(self.probability + 0.1, 0.0, 1.0)
-                    sys.stdout.write("\r*******Collision Vehicle ID: %02d in %.1f secs with %.1f probability*******\t" % (
-                        key, i / 10.0, self.probability))
+                    # if collision, increase the probability of collision for that id
+                    if key not in self.probability:
+                        self.probability[key] = 0.1
+                    else: 
+                        self.probability[key] = np.clip(self.probability[key] + 0.1, 0.0, 1.0)
+                    
+                    sys.stdout.write("\r********* Collision Vehicle ID: %02d in %.1f secs with %.1f probability *********\t" % (
+                        key, i / 10.0, self.probability[key]))
                     sys.stdout.flush()
+                    
                     self.publish_collision_msg(key, i/10.0, value[i])
+                    
+                    if self.probability[key] > self.collision_prob_threshold:
+                        self.publish_marker_msg(value[i], [3.0, 3.0, 3.0], frame_id=EGO_VEHICLE_FRAME, color=[1.0, 0.0, 0.0])
+                    print(self.probability)
                     return
-        self.probability = np.clip(self.probability - 0.3, 0.0, 1.0)
+
+        for key in self.oncoming_trajs:
+            self.probability[key] = np.clip(self.probability[key] - 0.3, 0.0, 1.0)
 
 
     def publish_collision_msg(self, track_id, ttc, state):
@@ -82,13 +96,50 @@ class CollisionDetectionClass:
         msg.header.stamp = rospy.Time.now()
         msg.header.frame_id = EGO_VEHICLE_FRAME
         msg.time_to_impact = rospy.Duration.from_sec(ttc)
-        msg.probability = self.probability
+        msg.probability = self.probability[track_id]
         msg.track_id = track_id
         msg.state.x = state[0]
         msg.state.y = state[1]
         msg.state.vx = state[2]
         msg.state.vy = state[3]
         self.publisher['collision'].publish(msg)
+
+    def publish_marker_msg(self, state, scale, frame_id='/map', marker_id=0,
+        duration=0.5, color=[1.0, 1.0, 1.0]):
+        """ 
+        Helper function for generating visualization markers
+        
+        Args:
+            trajectory (array-like): (n, 2) array-like trajectory data
+            frame_id (str): ROS TF frame id
+            marker_id (int): Integer identifying the trajectory
+            duration (rospy.Duration): How long the trajectory will be displayed for
+            color (list): List of color floats from 0 to 1 [r,g,b]
+        
+        Returns: 
+            Marker: A trajectory marker message which can be published to RViz
+        """
+        marker = Marker()
+        marker.header.stamp = rospy.Time.now()
+        marker.header.frame_id = frame_id
+        marker.id = marker_id
+
+        marker.type = marker.CUBE
+        marker.text = str(marker_id)
+        marker.action = marker.ADD
+        marker.scale.x = scale[0]
+        marker.scale.y = scale[1]
+        marker.scale.z = scale[2]
+        marker.color.r = color[0]
+        marker.color.g = color[1]
+        marker.color.b = color[2]
+        marker.color.a = 1.0
+        marker.lifetime = rospy.Duration(duration)
+        marker.pose.orientation.w = 1.0
+        marker.pose.position.x = state[0]
+        marker.pose.position.y = state[1]
+        marker.pose.position.z = 0.5
+        self.publisher['visualization'].publish(marker)
         
             
     def find_orientation(self, trajectory, index):
@@ -111,8 +162,11 @@ def main():
 
     publishers = {}
     publishers['collision'] = rospy.Publisher("/delta/prediction/collision", CollisionDetection, queue_size=5)
+    publishers['visualization'] = rospy.Publisher("/delta/prediction/collision/visualization", Marker, queue_size=5)
 
-    collisionobj  = CollisionDetectionClass(publishers)
+    collision_prob_threshold = rospy.get_param("collision_threshold", 0.5)
+
+    collisionobj  = CollisionDetectionClass(publishers, collision_prob_threshold)
     
     rospy.Subscriber('/delta/prediction/ego_vehicle/trajectory', EgoStateEstimateArray, collisionobj.ego_prediction_callback)
     rospy.Subscriber('/delta/prediction/oncoming_vehicle/trajectory', OncomingVehicleTrajectoryArray, collisionobj.oncoming_prediction_callback)

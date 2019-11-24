@@ -11,6 +11,7 @@ import math
 import pprint
 import pdb
 import sys
+import time
 import traceback
 
 import numpy as np
@@ -110,6 +111,7 @@ class Prediction:
         self.track = None
         self.lanes = None
         self.ego_state = None
+        self.fps_logger = FPSLogger('Temp Prediction')
     
     def plot(self, predicted_trajectory, selected_idx):
         for i in range(len(self.trajectories)):
@@ -175,31 +177,35 @@ class Prediction:
         marker.lifetime = rospy.Duration(duration)
         return marker
 
-
     def generate_trajectories(self, pos_x, pos_y, vel_x, vel_y, lane_width=3.0):
         self.trajectories = []
-        min_vel = -2.0
-        max_vel = 2.0
-        for i in np.arange(-lane_width, lane_width, 0.1):
+        min_vel = -1.0
+        max_vel = 1.0
+        # self.fps_logger.lap()
+        lane_width = np.clip(lane_width, 2.0, 4.0)
+        for i in np.arange(-lane_width, lane_width, 0.25):
+            y = self.solve_trajectory(pos_y, vel_y, 0.0, pos_y+i, self.T)
             for j in np.arange(min_vel, max_vel, 0.5):
                 x = self.solve_trajectory(pos_x, vel_x, 0.0, pos_x+(vel_x+j/2)*self.T, self.T, x1_dot=vel_x+j, x1_ddot=0.0)
                 # y_pos, y_vel, y_acc
-                y = self.solve_trajectory(pos_y, vel_y, 0.0, pos_y+i, self.T)
 
                 self.trajectories.append(self.evaluate_polynomial(x,y))
                 
-                left_lane, right_lane = self.lanes.find_left_right_lane_marking([0.0, 0.0])
+                # left_lane, right_lane = self.lanes.find_left_right_lane_marking([0.0, 0.0])
                 cost = j*0.01
                 
-                if left_lane == -1 or right_lane == -1:
-                    cost = 1
-                else:
-                    left_side = self.lanes.are_points_same_side([pos_x, pos_y], [j+pos_x, i+pos_y], left_lane)
-                    right_side = self.lanes.are_points_same_side([pos_x, pos_y], [j+pos_x, i+pos_y], right_lane)
-                    if left_side == 0 or right_side == 0:
-                        cost = 1
+                # if left_lane == -1 or right_lane == -1:
+                #     cost = 1
+                # else:
+                #     left_side = self.lanes.are_points_same_side([pos_x, pos_y], [j+pos_x, i+pos_y], left_lane)
+                #     right_side = self.lanes.are_points_same_side([pos_x, pos_y], [j+pos_x, i+pos_y], right_lane)
+                #     if left_side == 0 or right_side == 0:
+                #         cost = 1
 
                 self.cost.append(cost)
+        # self.fps_logger.tick()
+        # sys.stdout.write('\r%s ' % self.fps_logger.get_log())
+        # sys.stdout.flush()
     
     def solve_trajectory(self, x0, x0_dot, x0_ddot, x1, T, x1_dot=0, x1_ddot=0):
         a0 = x0
@@ -393,9 +399,9 @@ class OncomingTrajectoryPrediction:
         RMSE_sum = 0
         valid_tracks = 0
 
+        self.fps_logger.lap()
         if self.tracks != None and np.all(self.ego_state != None) and self.lanes != None:
             try:
-                self.fps_logger.lap()
                 for i in range(len(self.tracks)):
                     if not self.tracks[i][0] in self.predictions.keys():
                         self.predictions[self.tracks[i][0]] = Prediction(self.dt, self.T, self.tracks[i][0], self.verbose)
@@ -427,14 +433,20 @@ class OncomingTrajectoryPrediction:
                         sys.stdout.flush()
                     self.publishers['traj_vis_gt_pub'].publish(vis_array_gt_msg)
 
-                self.fps_logger.tick()
-                self.publish_diagnostics()
                 self.publishers['traj_pub'].publish(traj_array_msg)
                 self.publishers['traj_vis_pub'].publish(vis_array_msg)
 
             except IndexError:
                 # traceback.print_exc()
                 pass
+
+        else:
+            time.sleep(1e-5)  # For fps logging
+
+        self.fps_logger.tick()
+        # sys.stdout.write('\r%s ' % self.fps_logger.get_log())
+        # sys.stdout.flush()
+        self.publish_diagnostics()
 
     def publish_diagnostics(self):
         msg = DiagnosticArray()
