@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<launch>
+
+    <!-- Play rosbag record -->
+    <param name="oncoming_validation_folder" value="/home/karmesh/delta_ws/src/delta_prediction/validation_dataset"/>
+    <param name="oncoming_validation_file" value="prediction_test_v9"/>
+
+    <include file="$(find delta_perception)/launch/play_rosbag.launch">
+        <arg name="filename" value="/media/karmesh/DATA/CMU/MRSD_Project/Dataset/prediction_test_v9.bag" />
+    </include>
+
+    <!-- Run the oncoming prediction pipeline -->
+    <node   
+        pkg="delta_prediction"
+        type="oncoming_trajectory_validation.py"
+        name="oncoming_trajectory_validation"
+        output="screen">
+    </node>
+
+    <node
+        type="rviz" name="rviz" pkg="rviz" args="-d $(find delta_prediction)/prediction.rviz">
+    </node>
+
+</launch>
