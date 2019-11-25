@@ -23,9 +23,9 @@ class CollisionDetectionClass:
         self.publisher = publisher
         self.ego_traj = []
         self.oncoming_trajs = {}
-        self.npc_bb = np.array([5.5, 2.5])
+        self.npc_bb = np.array([5.0, 2.0])
         self.ego_bb = np.array([6.0, 3.0])
-        self.traj_len=20
+        self.traj_len=30
         self.probability = {}
         self.collision_prob_threshold = collision_prob_threshold
 
@@ -59,8 +59,9 @@ class CollisionDetectionClass:
             pass
 
     def collision_check(self):
-        for i in range(self.traj_len):
-            for key, value in self.oncoming_trajs.items():
+        for key, value in self.oncoming_trajs.items():
+            collision = False
+            for i in range(self.traj_len):
                 orientation = self.find_orientation(value, i)
                 other_obj = [np.array([value[i][0], 
                                        value[i][1], 
@@ -72,14 +73,19 @@ class CollisionDetectionClass:
                                      self.ego_bb]
                 if collisionChecking(ego_obj, other_obj):
                     # if collision, increase the probability of collision for that id
+                    collision = True
+                    if(value[i][2] > 0):
+                        c_time = 0.001
+                    else:
+                        c_time = 0.015
                     if key not in self.probability:
-                        self.probability[key] = 0.1
+                        self.probability[key] = np.clip(10*c_time + c_time*self.traj_len/(i+1), 0.0, 1.0)
                     else: 
-                        self.probability[key] = np.clip(self.probability[key] + 0.1, 0.0, 1.0)
+                        self.probability[key] = np.clip(self.probability[key] + 10*c_time + c_time*self.traj_len/(i+1), 0.0, 1.0)
                     
                     # print on screen
-                    sys.stdout.write("\r********* Collision Vehicle ID: %02d in %.1f secs with %.1f probability *********\t" % (
-                        key, i / 10.0, self.probability[key]))
+                    sys.stdout.write("\r********* Collision Vehicle ID: %02d in %.2f secs with %.2f probability %.2f velocity  *********\t" % (
+                        key, i / 10.0, self.probability[key], value[i][2]))
                     sys.stdout.flush()
                     
                     self.publish_collision_msg(key, i/10.0, value[i], self.probability[key])
@@ -87,10 +93,11 @@ class CollisionDetectionClass:
                     if self.probability[key] > self.collision_prob_threshold:
                         self.publish_marker_msg(value[i], [3.0, 3.0, 3.0], frame_id=EGO_VEHICLE_FRAME, color=[1.0, 0.0, 0.0])
                     print(self.probability)
-                    return
-
-        for key in self.probability:
-            self.probability[key] = np.clip(self.probability[key] - 0.3, 0.0, 1.0)
+                    break
+            if key in self.probability and collision is False:
+                self.probability[key] = np.clip(self.probability[key] - 0.3, 0.0, 1.0)
+        # for key in self.probability:
+        #     self.probability[key] = np.clip(self.probability[key] - 0.3, 0.0, 1.0)
 
 
     def publish_collision_msg(self, track_id, ttc, state, probability):
