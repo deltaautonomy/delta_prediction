@@ -3,6 +3,7 @@
 
 import sys
 import math
+import pdb
 import numpy as np 
 
 import rospy
@@ -81,23 +82,23 @@ class CollisionDetectionClass:
                         key, i / 10.0, self.probability[key]))
                     sys.stdout.flush()
                     
-                    self.publish_collision_msg(key, i/10.0, value[i])
+                    self.publish_collision_msg(key, i/10.0, value[i], self.probability[key])
                     
                     if self.probability[key] > self.collision_prob_threshold:
                         self.publish_marker_msg(value[i], [3.0, 3.0, 3.0], frame_id=EGO_VEHICLE_FRAME, color=[1.0, 0.0, 0.0])
                     print(self.probability)
                     return
 
-        for key in self.oncoming_trajs:
+        for key in self.probability:
             self.probability[key] = np.clip(self.probability[key] - 0.3, 0.0, 1.0)
 
 
-    def publish_collision_msg(self, track_id, ttc, state):
+    def publish_collision_msg(self, track_id, ttc, state, probability):
         msg = CollisionDetection()
         msg.header.stamp = rospy.Time.now()
         msg.header.frame_id = EGO_VEHICLE_FRAME
         msg.time_to_impact = rospy.Duration.from_sec(ttc)
-        msg.probability = self.probability[track_id]
+        msg.probability = probability
         msg.track_id = track_id
         msg.state.x = state[0]
         msg.state.y = state[1]
