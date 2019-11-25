@@ -59,8 +59,9 @@ class CollisionDetectionClass:
             pass
 
     def collision_check(self):
-        for i in range(self.traj_len):
-            for key, value in self.oncoming_trajs.items():
+        for key, value in self.oncoming_trajs.items():
+            collision = False
+            for i in range(self.traj_len):
                 orientation = self.find_orientation(value, i)
                 other_obj = [np.array([value[i][0], 
                                        value[i][1], 
@@ -72,6 +73,7 @@ class CollisionDetectionClass:
                                      self.ego_bb]
                 if collisionChecking(ego_obj, other_obj):
                     # if collision, increase the probability of collision for that id
+                    collision = True
                     if(value[i][2] > 0):
                         c_time = 0.001
                     else:
@@ -91,10 +93,11 @@ class CollisionDetectionClass:
                     if self.probability[key] > self.collision_prob_threshold:
                         self.publish_marker_msg(value[i], [3.0, 3.0, 3.0], frame_id=EGO_VEHICLE_FRAME, color=[1.0, 0.0, 0.0])
                     print(self.probability)
-                    return
-
-        for key in self.probability:
-            self.probability[key] = np.clip(self.probability[key] - 0.3, 0.0, 1.0)
+                    break
+            if key in self.probability and collision is False:
+                self.probability[key] = np.clip(self.probability[key] - 0.3, 0.0, 1.0)
+        # for key in self.probability:
+        #     self.probability[key] = np.clip(self.probability[key] - 0.3, 0.0, 1.0)
 
 
     def publish_collision_msg(self, track_id, ttc, state, probability):
