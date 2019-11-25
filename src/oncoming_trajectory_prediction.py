@@ -168,13 +168,13 @@ class Prediction:
             point = Point()
             point.x = x
             point.y = y
-            point.z = 0.5
+            point.z = 0.0
             marker.points.append(point)    
-        marker.scale.x = 0.15
+        marker.scale.x = 0.3
         marker.color.r = color[0]
         marker.color.g = color[1]
         marker.color.b = color[2]
-        marker.color.a = 1.0
+        marker.color.a = 0.3
         marker.lifetime = rospy.Duration(duration)
         return marker
 
@@ -383,8 +383,9 @@ class OncomingTrajectoryPrediction:
         self.lanes = LaneMarkerObject(slopes, intercepts)
 
     def uncompensate_velocity(self, track):
-        track[3] = track[3] - self.ego_state[0,3]
-        track[4] = track[4] - self.ego_state[0,4]
+        if self.validation_mode:
+            track[3] = track[3] - self.ego_state[0,3]
+            track[4] = track[4] - self.ego_state[0,4]
         # print('ego vx', self.ego_state[0,3], 'ego vy', self.ego_state[0,4])
         # print('track vx', track[3], 'track vy', track[4])
         return track
@@ -479,7 +480,11 @@ def main():
     publishers['traj_vis_gt_pub'] = rospy.Publisher("/delta/prediction/oncoming_vehicle/visualization_gt", MarkerArray, queue_size=5)
     publishers['diag_pub'] = rospy.Publisher("/delta/prediction/oncoming_vehicle/diagnostics", DiagnosticArray, queue_size=5)
 
-    oncoming_predictor = OncomingTrajectoryPrediction(0.1, 2, publishers, folder, file_name, validation_mode, False)
+    if validation_mode:
+        prediction_time = 2.0
+    else:
+        prediction_time = 3.0
+    oncoming_predictor = OncomingTrajectoryPrediction(0.1, prediction_time, publishers, folder, file_name, validation_mode, False)
 
     # Subscribe to topics
     if validation_mode:
